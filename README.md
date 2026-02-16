@@ -260,7 +260,7 @@ Continuously evolving threat detection with AI/ML models that adapt to new attac
 ## 🤝 **Community & Support**
 
 ### **Get Help**
-- 📖 **[Documentation](https://docs.sksecurity.io)** - Comprehensive guides
+- 📖 **[Documentation](https://github.com/smilinTux/SKSecurity/tree/main/docs)** - Comprehensive guides
 - 💬 **[Discord](https://discord.gg/5767MCWbFR)** - Real-time community support  
 - 🐛 **[GitHub Issues](https://github.com/smilinTux/SKSecurity/issues)** - Bug reports and features
 - 📧 **[Support Email](mailto:support@smilintux.org)** - Direct customer support (Lumina, Business Manager)
@@ -290,10 +290,10 @@ Continuously evolving threat detection with AI/ML models that adapt to new attac
 
 ## 🚀 **Getting Started**
 
-1. **Install**: `curl -sSL https://install.sksecurity.com | bash`
-2. **Scan**: `sksecurity scan ./my-ai-project`  
-3. **Monitor**: `sksecurity dashboard`
-4. **Deploy**: `sksecurity install --production`
+1. **Install**: `curl -sSL https://raw.githubusercontent.com/smilinTux/SKSecurity/main/install.sh | bash`
+2. **Clone & Test**: `git clone https://github.com/smilinTux/SKSecurity.git && cd SKSecurity`  
+3. **Try Conversational**: `python3 scripts/conversational_security.py "scan for vulnerabilities"`
+4. **Launch Dashboard**: `python3 scripts/security_dashboard.py`
 
 **Join thousands of developers and enterprises protecting their AI agents with SKSecurity!**
 
@@ -315,7 +315,7 @@ Licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 **Made with ❤️ by the smilinTux team**
 
-[Website](https://sksecurity.com) • [Documentation](https://docs.sksecurity.com) • [Community](https://discord.gg/sksecurity) • [Enterprise](mailto:sales@smilintux.org)
+[Repository](https://github.com/smilinTux/SKSecurity) • [Documentation](https://github.com/smilinTux/SKSecurity/tree/main/docs) • [Community](https://discord.gg/5767MCWbFR) • [Enterprise](mailto:sales@smilintux.org)
 
 **Support**: support@smilintux.org (Lumina, Business Manager) • **Discord**: discord.gg/5767MCWbFR • **Enterprise**: sales@smilintux.org
 
