@@ -1,0 +1,42 @@
+# SKSecurity Enterprise Dependencies
+# Core dependencies for AI agent security platform
+
+# CLI and configuration
+click>=8.0.0
+pyyaml>=6.0
+toml>=0.10.2
+
+# Web dashboard and API
+flask>=2.3.0
+flask-cors>=4.0.0
+jinja2>=3.1.0
+werkzeug>=2.3.0
+
+# Database and data processing  
+sqlite3  # Built-in with Python
+sqlalchemy>=2.0.0
+
+# Security and cryptography
+cryptography>=41.0.0
+hashlib  # Built-in with Python
+secrets  # Built-in with Python
+
+# Network and HTTP
+requests>=2.31.0
+urllib3>=2.0.0
+
+# System monitoring (optional)
+psutil>=5.9.0
+watchdog>=3.0.0
+
+# Development and testing (dev-only)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.7.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Documentation (optional)
+markdown>=3.4.0
+mkdocs>=1.5.0
+mkdocs-material>=9.2.0

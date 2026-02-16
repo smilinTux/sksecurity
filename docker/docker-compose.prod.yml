@@ -1,0 +1,75 @@
+# SKSecurity Enterprise - Production Stack
+version: '3.8'
+
+services:
+  sksecurity:
+    image: smilintu/sksecurity:latest
+    container_name: sksecurity-prod
+    ports:
+      - "443:8888"
+    volumes:
+      - sksecurity_config:/home/sksecurity/.config/sksecurity
+      - sksecurity_logs:/home/sksecurity/.sksecurity/logs
+      - sksecurity_quarantine:/home/sksecurity/.sksecurity/quarantine
+    environment:
+      - SKSECURITY_ENV=production
+      - SKSECURITY_DEBUG=false
+      - SKSECURITY_SSL=true
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:8888/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Optional: Redis for caching (enterprise deployments)
+  redis:
+    image: redis:7-alpine
+    container_name: sksecurity-redis
+    volumes:
+      - redis_data:/data
+    restart: always
+    command: redis-server --appendonly yes
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  # Optional: PostgreSQL for enterprise database (instead of SQLite)
+  postgres:
+    image: postgres:15-alpine
+    container_name: sksecurity-postgres
+    environment:
+      POSTGRES_DB: sksecurity
+      POSTGRES_USER: sksecurity
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+
+volumes:
+  sksecurity_config:
+  sksecurity_logs:
+  sksecurity_quarantine:
+  redis_data:
+  postgres_data:

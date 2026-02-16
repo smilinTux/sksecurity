@@ -1,0 +1,54 @@
+# SKSecurity Enterprise - Alpine Linux (Lightweight)
+FROM python:3.11-alpine
+
+# Metadata
+LABEL maintainer="team@smilintux.org"
+LABEL description="Enterprise-grade security for AI agent ecosystems (Alpine)"
+LABEL version="1.0.0-alpine"
+LABEL org.opencontainers.image.source="https://github.com/smilinTux/SKSecurity"
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    git \
+    sqlite \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    && rm -rf /var/cache/apk/*
+
+# Create app directory and user
+RUN adduser -D -s /bin/sh sksecurity
+WORKDIR /home/sksecurity
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Install SKSecurity
+RUN pip install --no-cache-dir .
+
+# Create necessary directories
+RUN mkdir -p /home/sksecurity/.config/sksecurity \
+    /home/sksecurity/.sksecurity/logs \
+    /home/sksecurity/.sksecurity/quarantine \
+    && chown -R sksecurity:sksecurity /home/sksecurity
+
+# Switch to non-root user
+USER sksecurity
+
+# Create default configuration
+RUN sksecurity init --config-only
+
+# Expose dashboard port
+EXPOSE 8888
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8888/api/status || exit 1
+
+# Default command
+CMD ["sksecurity", "dashboard", "--host", "0.0.0.0", "--port", "8888"]
