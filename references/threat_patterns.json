@@ -1,0 +1,109 @@
+{
+  "last_updated": "2026-02-14T10:16:53.511635",
+  "version": "1.1",
+  "sources": [
+    "Built-in Enhanced"
+  ],
+  "threats": [
+    {
+      "type": "code_injection",
+      "pattern": "eval\\s*\\(",
+      "severity": "CRITICAL"
+    },
+    {
+      "type": "command_injection",
+      "pattern": "os\\.system\\s*\\(",
+      "severity": "CRITICAL"
+    },
+    {
+      "type": "shell_injection",
+      "pattern": "subprocess\\.(call|run|Popen).*shell=True",
+      "severity": "HIGH"
+    },
+    {
+      "type": "path_traversal",
+      "pattern": "\\.\\./",
+      "severity": "MEDIUM"
+    },
+    {
+      "type": "hardcoded_secrets",
+      "pattern": "(password|token|key|secret|api_key)\\s*=\\s*['\\\"][^'\\\"]{8,}['\\\"]",
+      "severity": "HIGH"
+    },
+    {
+      "type": "unsafe_yaml",
+      "pattern": "yaml\\.load\\(",
+      "severity": "MEDIUM"
+    },
+    {
+      "type": "unsafe_pickle",
+      "pattern": "pickle\\.loads?\\(",
+      "severity": "HIGH"
+    },
+    {
+      "type": "sql_injection",
+      "pattern": "execute\\(.*%.*\\)",
+      "severity": "HIGH"
+    },
+    {
+      "type": "xss_potential",
+      "pattern": "innerHTML\\s*=|document\\.write\\(",
+      "severity": "MEDIUM"
+    },
+    {
+      "type": "crypto_weakness",
+      "pattern": "(md5|sha1)\\(",
+      "severity": "LOW"
+    },
+    {
+      "type": "insecure_random",
+      "pattern": "random\\.random\\(|Math\\.random\\(",
+      "severity": "LOW"
+    },
+    {
+      "type": "debug_mode",
+      "pattern": "DEBUG\\s*=\\s*True|debug\\s*=\\s*true",
+      "severity": "MEDIUM"
+    },
+    {
+      "type": "insecure_protocol",
+      "pattern": "http://(?!localhost|127\\.0\\.0\\.1)",
+      "severity": "MEDIUM"
+    },
+    {
+      "type": "weak_crypto",
+      "pattern": "(DES|RC4|3DES)",
+      "severity": "HIGH"
+    },
+    {
+      "type": "unsafe_deserialization",
+      "pattern": "json\\.loads.*input|loads\\(.*request",
+      "severity": "MEDIUM"
+    },
+    {
+      "type": "buffer_overflow",
+      "pattern": "strcpy\\s*\\(|strcat\\s*\\(",
+      "severity": "HIGH"
+    },
+    {
+      "type": "format_string",
+      "pattern": "printf\\s*\\([^,)]*%",
+      "severity": "HIGH"
+    },
+    {
+      "type": "race_condition",
+      "pattern": "time\\.sleep\\(0\\)|threading\\..*\\.start\\(\\)",
+      "severity": "MEDIUM"
+    },
+    {
+      "type": "privilege_escalation",
+      "pattern": "sudo|setuid|chmod\\s+[0-7]*7[0-7]*",
+      "severity": "HIGH"
+    },
+    {
+      "type": "backdoor_pattern",
+      "pattern": "reverse_shell|nc\\s+-e|/bin/sh",
+      "severity": "CRITICAL"
+    }
+  ]
+}
