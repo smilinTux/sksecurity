@@ -62,7 +62,7 @@ AI: "✅ Found 0 critical threats, 2 recommendations.
 
 ### **Installation (Conversational)**
 ```
-User: "Install security scanner: https://sksecurity.io/install"
+User: "Install security scanner from GitHub"
 OpenClaw: "✅ Installing SKSecurity Enterprise...
            🔍 Auto-discovered 15 AI agent files
            🛡️ Running initial security scan...
@@ -130,7 +130,7 @@ python3 scripts/install_security.py
 ### **Community Support**
 - 💬 **Discord**: https://discord.gg/5767MCWbFR (24/7 community)
 - 📧 **Email**: support@smilintux.org (Expert help)
-- 📚 **Docs**: https://docs.sksecurity.io
+- 📚 **Docs**: https://github.com/smilinTux/SKSecurity/tree/main/docs
 
 ### **Enterprise Support**
 - 📞 **Priority Support**: security@smilintux.org

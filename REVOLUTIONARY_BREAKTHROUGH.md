@@ -458,7 +458,7 @@ curl -sSL https://raw.githubusercontent.com/smilinTux/SKSecurity/main/install.sh
 **Start your 14-day Enterprise trial:**
 - Email: sales@smilintux.org  
 - Discord: https://discord.gg/5767MCWbFR
-- Schedule demo: calendly.com/smilintux-security
+- Schedule demo: sales@smilintux.org
 
 ### **🏢 For Enterprises:**
 **Custom deployment consultation:**
