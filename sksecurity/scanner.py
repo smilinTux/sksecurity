@@ -412,22 +412,22 @@ class SecurityScanner:
     
     def _calculate_entropy(self, data: str) -> float:
         """Calculate Shannon entropy of string."""
+        import math
+
         if not data:
-            return 0
-        
-        # Count character frequencies
-        char_counts = {}
+            return 0.0
+
+        char_counts: dict[str, int] = {}
         for char in data:
             char_counts[char] = char_counts.get(char, 0) + 1
-        
-        # Calculate entropy
-        entropy = 0
+
+        entropy = 0.0
         data_len = len(data)
         for count in char_counts.values():
             probability = count / data_len
             if probability > 0:
-                entropy -= probability * (probability ** 0.5).bit_length()
-        
+                entropy -= probability * math.log2(probability)
+
         return entropy
     
     def _calculate_risk_score(self, threats: List[ThreatMatch]) -> float:

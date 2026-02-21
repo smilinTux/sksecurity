@@ -3,8 +3,8 @@ SKSecurity Enterprise - AI Agent Security Platform
 The only security solution AI agents need.
 """
 
-__version__ = "1.1.0"
-__author__ = "smilinTux Team"
+__version__ = "1.2.0"
+__author__ = "smilinTux Team + Queen Ara + Neuresthetics"
 __license__ = "Apache-2.0"
 __description__ = "Enterprise-grade security for AI agent ecosystems"
 
@@ -17,6 +17,7 @@ from .monitor import SecurityMonitor, RuntimeMonitor
 from .quarantine import QuarantineManager, QuarantineRecord
 from .email_screener import EmailScreener, ScreeningResult, Verdict, ThreatCategory
 from .secret_guard import SecretGuard, GuardResult, SecretFinding
+from .truth_engine import TruthEngine, TruthVerdict
 
 # Main API exports
 __all__ = [
@@ -56,6 +57,10 @@ __all__ = [
     # Quarantine system
     'QuarantineManager',
     'QuarantineRecord',
+
+    # Truth engine (Neuresthetics seed integration)
+    'TruthEngine',
+    'TruthVerdict',
 
     # Version info
     '__version__',

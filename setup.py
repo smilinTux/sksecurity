@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 from pathlib import Path
 
 # Read version
-VERSION = "1.0.0"
+VERSION = "1.2.0"
 
 # Read README
 README_PATH = Path(__file__).parent / "README.md"
