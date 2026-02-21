@@ -12,22 +12,22 @@ flask-cors>=4.0.0
 jinja2>=3.1.0
 werkzeug>=2.3.0
 
-# Database and data processing  
-sqlite3  # Built-in with Python
+# Database and data processing
 sqlalchemy>=2.0.0
 
 # Security and cryptography
 cryptography>=41.0.0
-hashlib  # Built-in with Python
-secrets  # Built-in with Python
 
 # Network and HTTP
 requests>=2.31.0
 urllib3>=2.0.0
 
-# System monitoring (optional)
+# System monitoring
 psutil>=5.9.0
 watchdog>=3.0.0
+
+# Email parsing
+email-validator>=2.0.0
 
 # Development and testing (dev-only)
 pytest>=7.4.0
@@ -35,8 +35,3 @@ pytest-cov>=4.1.0
 black>=23.7.0
 flake8>=6.0.0
 mypy>=1.5.0
-
-# Documentation (optional)
-markdown>=3.4.0
-mkdocs>=1.5.0
-mkdocs-material>=9.2.0

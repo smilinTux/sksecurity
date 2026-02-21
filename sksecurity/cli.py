@@ -15,11 +15,13 @@ from typing import Optional
 from . import __version__, BANNER
 from .scanner import SecurityScanner
 from .dashboard import DashboardServer
-from .intelligence import ThreatIntelligence  
+from .intelligence import ThreatIntelligence
 from .database import SecurityDatabase
 from .config import SecurityConfig
 from .monitor import SecurityMonitor
 from .quarantine import QuarantineManager
+from .email_screener import EmailScreener
+from .secret_guard import SecretGuard, GuardResult
 
 @click.group()
 @click.version_option(version=__version__)
@@ -360,6 +362,148 @@ def status(ctx):
     click.echo(f"🛡️ Auto-quarantine: {'Enabled' if config.get('security.auto_quarantine', True) else 'Disabled'}")
     
     click.echo("\n✅ SKSecurity is operational")
+
+@cli.command()
+@click.argument('content', required=False)
+@click.option('--file', '-f', type=click.Path(exists=True), help='Read content from file')
+@click.option('--sender', '-s', help='Email sender address')
+@click.option('--subject', help='Email subject line')
+@click.option('--format', 'output_format', default='text', type=click.Choice(['text', 'json']))
+@click.pass_context
+def screen(ctx, content, file, sender, subject, output_format):
+    """Screen email or input content for threats before AI processing.
+
+    Detects prompt injection, phishing, credential leaks, and malicious links
+    in content before it reaches the AI model.
+
+    Examples:
+        sksecurity screen "Hello, please verify your account"
+        sksecurity screen -f email.txt --sender user@example.com
+        echo "some content" | sksecurity screen
+    """
+    if file:
+        with open(file, 'r') as f:
+            content = f.read()
+    elif not content:
+        if not sys.stdin.isatty():
+            content = sys.stdin.read()
+        else:
+            click.echo("Error: Provide content as argument, --file, or via stdin")
+            sys.exit(1)
+
+    screener = EmailScreener()
+    result = screener.screen(content, sender=sender, subject=subject)
+
+    if output_format == 'json':
+        click.echo(json.dumps(result.to_dict(), indent=2))
+    else:
+        click.echo(result.format_report())
+
+    sys.exit(0 if result.is_safe else 1)
+
+
+@cli.group()
+def guard():
+    """Secret leak prevention — detect and block credential leaks.
+
+    Scans files, directories, and git staging areas for API keys,
+    tokens, passwords, and other secrets.
+    """
+    pass
+
+
+@guard.command(name='scan')
+@click.argument('path', type=click.Path(exists=True), default='.')
+@click.option('--format', 'output_format', default='text', type=click.Choice(['text', 'json']))
+@click.pass_context
+def guard_scan(ctx, path, output_format):
+    """Scan files or directories for secrets and credentials.
+
+    Examples:
+        sksecurity guard scan .
+        sksecurity guard scan ./src --format json
+        sksecurity guard scan config.py
+    """
+    target = Path(path)
+    secret_guard = SecretGuard()
+
+    if target.is_file():
+        findings = secret_guard.scan_file(target)
+        result = GuardResult(target=str(target), findings=findings, files_scanned=1)
+    else:
+        result = secret_guard.scan_directory(target)
+
+    if output_format == 'json':
+        click.echo(json.dumps(result.to_dict(), indent=2))
+    else:
+        click.echo(result.format_report())
+
+    sys.exit(1 if result.has_secrets else 0)
+
+
+@guard.command(name='staged')
+@click.option('--format', 'output_format', default='text', type=click.Choice(['text', 'json']))
+@click.pass_context
+def guard_staged(ctx, output_format):
+    """Scan git staged files for secrets (what would be committed).
+
+    Examples:
+        sksecurity guard staged
+        sksecurity guard staged --format json
+    """
+    secret_guard = SecretGuard()
+    result = secret_guard.scan_git_staged()
+
+    if output_format == 'json':
+        click.echo(json.dumps(result.to_dict(), indent=2))
+    else:
+        click.echo(result.format_report())
+
+    sys.exit(1 if result.has_secrets else 0)
+
+
+@guard.command(name='install')
+@click.option('--repo', type=click.Path(), default='.', help='Git repository path')
+@click.pass_context
+def guard_install(ctx, repo):
+    """Install git pre-commit hook to block secrets from being committed.
+
+    Examples:
+        sksecurity guard install
+        sksecurity guard install --repo /path/to/repo
+    """
+    secret_guard = SecretGuard()
+    try:
+        hook_path = secret_guard.install_pre_commit_hook(Path(repo))
+        click.echo(f"✅ Pre-commit hook installed: {hook_path}")
+        click.echo("   Commits with secrets will now be automatically blocked.")
+    except Exception as e:
+        click.echo(f"❌ Failed to install hook: {e}", err=True)
+        sys.exit(1)
+
+
+@guard.command(name='text')
+@click.argument('text')
+@click.pass_context
+def guard_text(ctx, text):
+    """Scan a text string for secrets (useful for testing).
+
+    Examples:
+        sksecurity guard text "my_api_key=sk-abc123456789012345678901234567890123"
+    """
+    secret_guard = SecretGuard()
+    findings = secret_guard.scan_text(text)
+
+    if not findings:
+        click.echo("✅ No secrets detected.")
+    else:
+        click.echo(f"🚨 Found {len(findings)} secret(s):")
+        for finding in findings:
+            click.echo(f"  🔴 {finding.secret_type}: {finding.redacted_text}")
+            click.echo(f"     {finding.remediation}")
+
+    sys.exit(1 if findings else 0)
+
 
 def detect_framework():
     """Auto-detect AI framework in current directory."""

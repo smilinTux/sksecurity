@@ -55,10 +55,20 @@ class ThreatIndicator:
 class ThreatIntelligence:
     """Manages threat intelligence feeds and indicators."""
     
-    def __init__(self, sources: Optional[List[Dict]] = None):
+    def __init__(self, sources: Optional[List[Dict]] = None, config: Optional[Dict] = None):
+        """
+        Initialize threat intelligence engine.
+
+        Args:
+            sources: Explicit list of threat source dicts.
+            config: Config dict; threat_sources extracted if sources not given.
+        """
         self.sources: List[ThreatSource] = []
         self.indicators: Dict[str, ThreatIndicator] = {}
-        self._load_sources(sources or self._default_sources())
+        resolved_sources = sources
+        if resolved_sources is None and config:
+            resolved_sources = config.get('threat_sources', None)
+        self._load_sources(resolved_sources or self._default_sources())
     
     def _default_sources(self) -> List[Dict]:
         return [
@@ -128,6 +138,139 @@ class ThreatIntelligence:
         """Add a custom threat indicator."""
         self.indicators[indicator.value] = indicator
     
+    def get_patterns(self) -> List[Dict[str, Any]]:
+        """
+        Return regex-based threat patterns for the scanner engine.
+
+        Returns:
+            List of pattern dicts with keys: pattern, type, severity,
+            confidence, source.
+        """
+        return self._builtin_patterns() + self._indicators_as_patterns()
+
+    def _indicators_as_patterns(self) -> List[Dict[str, Any]]:
+        """Convert loaded indicators into scanner-compatible patterns."""
+        patterns: List[Dict[str, Any]] = []
+        for indicator in self.indicators.values():
+            if indicator.type == 'signature' and indicator.value:
+                patterns.append({
+                    'pattern': indicator.value,
+                    'type': indicator.type,
+                    'severity': indicator.severity.upper(),
+                    'confidence': 0.85,
+                    'source': indicator.source,
+                })
+        return patterns
+
+    @staticmethod
+    def _builtin_patterns() -> List[Dict[str, Any]]:
+        """Built-in threat detection patterns that ship with sksecurity."""
+        return [
+            {
+                'pattern': r'(?:exec|eval)\s*\(',
+                'type': 'code_injection',
+                'severity': 'CRITICAL',
+                'confidence': 0.9,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'subprocess\.(?:call|run|Popen|check_output)\s*\(',
+                'type': 'command_injection',
+                'severity': 'HIGH',
+                'confidence': 0.85,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'os\.system\s*\(',
+                'type': 'command_injection',
+                'severity': 'HIGH',
+                'confidence': 0.9,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'(?:password|passwd|secret|api_key|apikey|token)\s*=\s*["\'][^"\']{8,}["\']',
+                'type': 'hardcoded_secrets',
+                'severity': 'CRITICAL',
+                'confidence': 0.8,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'(?:AKIA|ASIA)[A-Z0-9]{16}',
+                'type': 'hardcoded_secrets',
+                'severity': 'CRITICAL',
+                'confidence': 0.95,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'-----BEGIN (?:RSA |DSA |EC )?PRIVATE KEY-----',
+                'type': 'hardcoded_secrets',
+                'severity': 'CRITICAL',
+                'confidence': 0.99,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,}',
+                'type': 'hardcoded_secrets',
+                'severity': 'CRITICAL',
+                'confidence': 0.95,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'npm_[A-Za-z0-9]{36,}',
+                'type': 'hardcoded_secrets',
+                'severity': 'CRITICAL',
+                'confidence': 0.95,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'(?:curl|wget)\s+.*\|\s*(?:bash|sh|zsh)',
+                'type': 'remote_code_execution',
+                'severity': 'HIGH',
+                'confidence': 0.85,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'__import__\s*\(',
+                'type': 'code_injection',
+                'severity': 'HIGH',
+                'confidence': 0.8,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'pickle\.loads?\s*\(',
+                'type': 'deserialization',
+                'severity': 'HIGH',
+                'confidence': 0.85,
+                'source': 'builtin',
+            },
+            {
+                'pattern': r'yaml\.(?:load|unsafe_load)\s*\(',
+                'type': 'deserialization',
+                'severity': 'MEDIUM',
+                'confidence': 0.7,
+                'source': 'builtin',
+            },
+        ]
+
+    def get_status(self) -> Dict[str, Any]:
+        """
+        Return current threat intelligence status.
+
+        Returns:
+            Dict with total_patterns, last_update, sources list.
+        """
+        last_updates = [
+            s.last_fetch for s in self.sources if s.last_fetch is not None
+        ]
+        return {
+            'total_patterns': len(self.get_patterns()),
+            'last_update': max(last_updates).isoformat() if last_updates else 'never',
+            'sources': [
+                {'name': s.name, 'enabled': s.enabled, 'last_fetch': s.last_fetch.isoformat() if s.last_fetch else None}
+                for s in self.sources
+            ],
+        }
+
     def export(self, filepath: str):
         """Export threat intelligence to JSON file."""
         data = {

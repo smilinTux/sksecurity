@@ -3,7 +3,7 @@ SKSecurity Enterprise - AI Agent Security Platform
 The only security solution AI agents need.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "smilinTux Team"
 __license__ = "Apache-2.0"
 __description__ = "Enterprise-grade security for AI agent ecosystems"
@@ -15,35 +15,48 @@ from .database import SecurityDatabase, SecurityEvent
 from .config import SecurityConfig, SecurityPolicy
 from .monitor import SecurityMonitor, RuntimeMonitor
 from .quarantine import QuarantineManager, QuarantineRecord
+from .email_screener import EmailScreener, ScreeningResult, Verdict, ThreatCategory
+from .secret_guard import SecretGuard, GuardResult, SecretFinding
 
 # Main API exports
 __all__ = [
     # Core scanning
     'SecurityScanner',
     'ScanResult',
-    
+
+    # Email & input screening
+    'EmailScreener',
+    'ScreeningResult',
+    'Verdict',
+    'ThreatCategory',
+
+    # Secret leak prevention
+    'SecretGuard',
+    'GuardResult',
+    'SecretFinding',
+
     # Threat intelligence
-    'ThreatIntelligence', 
+    'ThreatIntelligence',
     'ThreatSource',
-    
+
     # Dashboard and monitoring
     'DashboardServer',
     'SecurityDashboard',
     'SecurityMonitor',
     'RuntimeMonitor',
-    
+
     # Database and events
     'SecurityDatabase',
     'SecurityEvent',
-    
+
     # Configuration
     'SecurityConfig',
     'SecurityPolicy',
-    
+
     # Quarantine system
     'QuarantineManager',
     'QuarantineRecord',
-    
+
     # Version info
     '__version__',
     '__author__',
