@@ -125,6 +125,41 @@ curl -sSL https://raw.githubusercontent.com/smilinTux/SKSecurity/main/install.sh
 python3 scripts/install_security.py
 ```
 
+## AI-Powered Analysis (--ai flag)
+
+SKSecurity integrates with Ollama for local AI-powered analysis:
+
+```bash
+# Enable AI for any command
+sksecurity --ai scan /path/to/code
+sksecurity --ai screen "user input to check"
+sksecurity --ai guard scan /path/to/repo
+
+# Configure via environment variables
+export SKSECURITY_AI=1
+export SKSECURITY_AI_MODEL=llama3.2
+export SKSECURITY_AI_URL=http://localhost:11434
+```
+
+**AI Features:**
+- Scan result explanation in plain English
+- Content screening with contextual understanding
+- Threat intelligence analysis with severity assessment
+- Secret exposure risk assessment
+- Graceful fallback when Ollama is not running
+
+### CLI Commands
+
+```bash
+sksecurity scan /path         # Security scan
+sksecurity screen "input"     # Content screening
+sksecurity guard scan /path   # Guard mode
+sksecurity config show        # Show configuration
+sksecurity --version          # Version info
+```
+
+---
+
 ## Support & Resources
 
 ### **Community Support**
