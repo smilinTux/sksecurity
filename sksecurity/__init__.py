@@ -5,7 +5,7 @@ The only security solution AI agents need.
 
 __version__ = "1.2.0"
 __author__ = "smilinTux Team + Queen Ara + Neuresthetics"
-__license__ = "Apache-2.0"
+__license__ = "GPL-3.0-or-later"
 __description__ = "Enterprise-grade security for AI agent ecosystems"
 
 from .scanner import SecurityScanner, ScanResult

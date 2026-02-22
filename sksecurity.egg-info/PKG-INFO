@@ -1,20 +1,15 @@
 Metadata-Version: 2.4
 Name: sksecurity
-Version: 1.0.0
+Version: 1.2.0
 Summary: Enterprise-grade security for AI agent ecosystems
 Home-page: https://github.com/smilinTux/SKSecurity
 Author: smilinTux Team
-Author-email: team@smilintux.org
-License: Apache-2.0
-Project-URL: Homepage, https://sksecurity.com
-Project-URL: Documentation, https://docs.sksecurity.com
-Project-URL: Repository, https://github.com/smilinTux/SKSecurity
-Project-URL: Bug Tracker, https://github.com/smilinTux/SKSecurity/issues
-Project-URL: Community, https://discord.gg/sksecurity
-Project-URL: Support, mailto:support@smilintux.org
-Project-URL: Enterprise, mailto:sales@smilintux.org
-Project-URL: Security, mailto:security@smilintux.org
-Keywords: security,ai,agents,scanning,threat-intelligence,enterprise,compliance,monitoring,quarantine,soc,openclaw,autogpt,langchain,vulnerability,cybersecurity
+Author-email: smilinTux Team <team@smilintux.org>
+License-Expression: GPL-3.0-or-later
+Project-URL: Homepage, https://sksecurity.io
+Project-URL: Repository, https://github.com/smilinTux/sksecurity
+Project-URL: Bug Tracker, https://github.com/smilinTux/sksecurity/issues
+Keywords: security,ai,agents,scanning,threat-intelligence,monitoring,quarantine,cybersecurity,soc
 Platform: any
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Developers
@@ -23,14 +18,12 @@ Classifier: Intended Audience :: Information Technology
 Classifier: Topic :: Security
 Classifier: Topic :: Software Development :: Quality Assurance
 Classifier: Topic :: System :: Monitoring
-Classifier: Topic :: System :: Systems Administration
-Classifier: License :: OSI Approved :: Apache Software License
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
 Classifier: Operating System :: OS Independent
 Classifier: Environment :: Console
 Classifier: Environment :: Web Environment
@@ -39,55 +32,25 @@ Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: click>=8.0.0
 Requires-Dist: pyyaml>=6.0
-Requires-Dist: toml>=0.10.2
 Requires-Dist: flask>=2.3.0
 Requires-Dist: flask-cors>=4.0.0
-Requires-Dist: jinja2>=3.1.0
-Requires-Dist: werkzeug>=2.3.0
 Requires-Dist: sqlalchemy>=2.0.0
 Requires-Dist: cryptography>=41.0.0
-Requires-Dist: hashlib
-Requires-Dist: secrets
 Requires-Dist: requests>=2.31.0
-Requires-Dist: urllib3>=2.0.0
 Requires-Dist: psutil>=5.9.0
 Requires-Dist: watchdog>=3.0.0
-Requires-Dist: pytest>=7.4.0
-Requires-Dist: pytest-cov>=4.1.0
-Requires-Dist: black>=23.7.0
-Requires-Dist: flake8>=6.0.0
-Requires-Dist: mypy>=1.5.0
-Requires-Dist: markdown>=3.4.0
-Requires-Dist: mkdocs>=1.5.0
-Requires-Dist: mkdocs-material>=9.2.0
+Requires-Dist: email-validator>=2.0.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.4.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
 Requires-Dist: black>=23.7.0; extra == "dev"
 Requires-Dist: flake8>=6.0.0; extra == "dev"
 Requires-Dist: mypy>=1.5.0; extra == "dev"
-Provides-Extra: docs
-Requires-Dist: mkdocs>=1.5.0; extra == "docs"
-Requires-Dist: mkdocs-material>=9.2.0; extra == "docs"
-Requires-Dist: markdown>=3.4.0; extra == "docs"
-Provides-Extra: enterprise
-Requires-Dist: watchdog>=3.0.0; extra == "enterprise"
-Requires-Dist: cryptography>=41.0.0; extra == "enterprise"
 Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
 Dynamic: home-page
-Dynamic: keywords
-Dynamic: license
 Dynamic: license-file
 Dynamic: platform
-Dynamic: project-url
-Dynamic: provides-extra
-Dynamic: requires-dist
 Dynamic: requires-python
-Dynamic: summary
 
 # 🛡️ SKSecurity Enterprise
 **The only security solution AI agents need**
