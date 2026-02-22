@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sksecurity"
-version = "1.2.0"
+version = "1.2.1"
 description = "Enterprise-grade security for AI agent ecosystems"
 readme = "README.md"
 license = "GPL-3.0-or-later"

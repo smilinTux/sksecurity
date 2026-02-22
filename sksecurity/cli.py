@@ -11,8 +11,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
-# Import SKSecurity components
 from . import __version__, BANNER
+from .ai_client import AIClient
 from .scanner import SecurityScanner
 from .dashboard import DashboardServer
 from .intelligence import ThreatIntelligence
@@ -24,18 +24,39 @@ from .email_screener import EmailScreener
 from .secret_guard import SecretGuard, GuardResult
 
 @click.group()
-@click.version_option(version=__version__)
+@click.version_option(__version__, prog_name="sksecurity")
 @click.option('--config', '-c', type=click.Path(), help='Configuration file path')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
+@click.option('--ai', 'use_ai', is_flag=True, envvar='SKSECURITY_AI', help='Enable AI-powered analysis (requires Ollama)')
+@click.option('--ai-model', envvar='SKSECURITY_AI_MODEL', default=None, help='Ollama model name (default: llama3.2)')
+@click.option('--ai-url', envvar='SKSECURITY_AI_URL', default=None, help='Ollama server URL')
 @click.pass_context
-def cli(ctx, config, verbose):
+def cli(ctx, config, verbose, use_ai, ai_model, ai_url):
     """🛡️ SKSecurity Enterprise - AI Agent Security Platform
-    
+
     Enterprise-grade security for AI agent ecosystems.
+
+    Use --ai to enable AI-powered analysis (scan explanations,
+    threat assessment, content screening). Requires Ollama.
     """
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
     ctx.obj['config'] = config or SecurityConfig.get_default_config_path()
+
+    if use_ai:
+        ai = AIClient(base_url=ai_url, model=ai_model)
+        if ai.is_available():
+            ctx.obj['ai'] = ai
+            if verbose:
+                click.echo(f"AI enabled: {ai.model} @ {ai.base_url}")
+        else:
+            click.echo(
+                f"Warning: AI requested but Ollama not reachable at {ai.base_url}",
+                err=True,
+            )
+            ctx.obj['ai'] = None
+    else:
+        ctx.obj['ai'] = None
 
 @cli.command()
 @click.argument('path', type=click.Path(exists=True))
@@ -85,8 +106,14 @@ def scan(ctx, path, output_format, threshold, quarantine, export):
         click.echo(f"Results exported to: {export}")
     else:
         click.echo(output)
-    
-    # Exit with appropriate code
+
+    ai = ctx.obj.get('ai')
+    if ai and result.risk_score > 0:
+        explanation = ai.explain_scan(output[:3000])
+        if explanation:
+            click.echo("\n🤖 AI Analysis:")
+            click.echo(explanation)
+
     sys.exit(1 if result.risk_score >= threshold else 0)
 
 @cli.command()
@@ -399,6 +426,13 @@ def screen(ctx, content, file, sender, subject, output_format):
     else:
         click.echo(result.format_report())
 
+    ai = ctx.obj.get('ai')
+    if ai and not result.is_safe:
+        assessment = ai.screen_content(content[:2000])
+        if assessment:
+            click.echo("\n🤖 AI Assessment:")
+            click.echo(assessment)
+
     sys.exit(0 if result.is_safe else 1)
 
 
@@ -437,6 +471,13 @@ def guard_scan(ctx, path, output_format):
         click.echo(json.dumps(result.to_dict(), indent=2))
     else:
         click.echo(result.format_report())
+
+    ai = ctx.obj.get('ai')
+    if ai and result.has_secrets:
+        assessment = ai.assess_secrets(result.format_report()[:2000])
+        if assessment:
+            click.echo("\n🤖 AI Assessment:")
+            click.echo(assessment)
 
     sys.exit(1 if result.has_secrets else 0)
 

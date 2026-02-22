@@ -70,11 +70,71 @@ class SecurityConfig:
         'policies': []
     }
     
+    DEFAULT_CONFIG_DIR = Path.home() / '.sksecurity'
+    DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / 'config.yaml'
+
     def __init__(self, config_path: Optional[str] = None):
-        self.config_path = config_path or str(Path.home() / '.sksecurity' / 'config.yaml')
+        self.config_path = config_path or str(self.DEFAULT_CONFIG_FILE)
         self._config = self._load_config()
         self._policies: Dict[str, SecurityPolicy] = {}
         self._load_policies()
+
+    @classmethod
+    def get_default_config_path(cls) -> str:
+        """Return the default configuration file path.
+
+        Returns:
+            str: Path to default config file.
+        """
+        return str(cls.DEFAULT_CONFIG_FILE)
+
+    @classmethod
+    def load(cls, config_path: Optional[str] = None) -> 'SecurityConfig':
+        """Load a SecurityConfig from a file path.
+
+        Args:
+            config_path: Path to config file. Uses default if None.
+
+        Returns:
+            SecurityConfig: Loaded configuration instance.
+        """
+        return cls(config_path=config_path)
+
+    @classmethod
+    def create_default_config(cls, framework: str = 'generic') -> str:
+        """Create a default configuration file for the given framework.
+
+        Args:
+            framework: AI framework name (openclaw, autogpt, langchain, generic).
+
+        Returns:
+            str: Path to the created config file.
+        """
+        config_path = cls.DEFAULT_CONFIG_FILE
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+
+        config = cls.DEFAULT_CONFIG.copy()
+        config['framework'] = framework
+
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+
+        return str(config_path)
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Return a summary of the current configuration.
+
+        Returns:
+            Dict: Configuration summary.
+        """
+        return {
+            'config_path': self.config_path,
+            'auto_quarantine': self.auto_quarantine,
+            'risk_threshold': self.risk_threshold,
+            'dashboard_port': self.dashboard_port,
+            'policies': len(self._policies),
+            'threat_sources': len(self.get_threat_sources()),
+        }
     
     def _load_config(self) -> Dict:
         """Load configuration from file or use defaults."""

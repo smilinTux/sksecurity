@@ -21,6 +21,7 @@ sksecurity.egg-info/entry_points.txt
 sksecurity.egg-info/not-zip-safe
 sksecurity.egg-info/requires.txt
 sksecurity.egg-info/top_level.txt
+tests/test_cli.py
 tests/test_config.py
 tests/test_database.py
 tests/test_email_screener.py
