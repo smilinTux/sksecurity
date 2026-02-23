@@ -1,0 +1,28 @@
+{
+  "name": "@smilintux/sksecurity",
+  "version": "1.2.1",
+  "description": "SKSecurity - The only security solution AI agents need. Threat intelligence, audit, quarantine.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "bin": {
+    "sksecurity-js": "bin/cli.js"
+  },
+  "keywords": [
+    "sksecurity",
+    "security",
+    "threat-intelligence",
+    "ai-security",
+    "audit",
+    "quarantine"
+  ],
+  "author": "smilinTux <chefboyrdave2.1@gmail.com>",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smilinTux/sksecurity.git"
+  },
+  "homepage": "https://github.com/smilinTux/sksecurity",
+  "bugs": {
+    "url": "https://github.com/smilinTux/sksecurity/issues"
+  }
+}
