@@ -5,6 +5,7 @@ Installs enterprise-grade AI agent security for OpenClaw and other frameworks
 """
 
 import os
+import platform
 import sys
 import json
 import shutil
@@ -28,8 +29,9 @@ class SKSecurityInstaller:
         openclaw_config_paths = [
             Path.home() / ".openclaw" / "openclaw.json",
             self.workspace / "openclaw.json",
-            Path("/etc/openclaw/openclaw.json")
         ]
+        if platform.system() != "Windows":
+            openclaw_config_paths.append(Path("/etc/openclaw/openclaw.json"))
         
         for config_path in openclaw_config_paths:
             if config_path.exists():
@@ -91,7 +93,8 @@ class SKSecurityInstaller:
             
             if source.exists():
                 shutil.copy2(source, dest)
-                dest.chmod(0o755)  # Make executable
+                if platform.system() != "Windows":
+                    dest.chmod(0o755)
                 print(f"   ✅ {script}")
             else:
                 print(f"   ⚠️ Missing: {script}")
@@ -235,15 +238,17 @@ else:
         
         with open(cron_script, 'w') as f:
             f.write(cron_content)
-        
-        cron_script.chmod(0o755)
-        
-        # Create systemd timer if available
-        if shutil.which('systemctl'):
+
+        if platform.system() != "Windows":
+            cron_script.chmod(0o755)
+
+        if platform.system() == "Windows":
+            self.create_windows_task()
+        elif shutil.which("systemctl"):
             self.create_systemd_timer()
         else:
             print("   ⚠️ systemctl not available, manual cron setup required")
-        
+
         print("   ✅ Automation configured")
     
     def create_systemd_timer(self):
@@ -293,7 +298,30 @@ WantedBy=timers.target
             
         except Exception as e:
             print(f"   ⚠️ systemd setup failed: {e}")
-    
+
+    def create_windows_task(self):
+        """Create a Windows Task Scheduler entry for daily security audits."""
+        try:
+            cron_script = self.security_dir / "scripts" / "security_cron.py"
+            cmd_line = f'"{sys.executable}" "{cron_script}"'
+            proc = subprocess.run(
+                [
+                    "schtasks", "/Create",
+                    "/SC", "DAILY",
+                    "/TN", "SKSecurityAudit",
+                    "/TR", cmd_line,
+                    "/ST", "06:00",
+                    "/F",
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            if proc.returncode == 0:
+                print("   ✅ Windows scheduled task installed")
+            else:
+                print(f"   ⚠️ schtasks failed: {proc.stderr.strip()}")
+        except Exception as e:
+            print(f"   ⚠️ Windows task setup failed: {e}")
+
     def create_dashboard_launcher(self):
         """Create dashboard launcher script"""
         print("🖥️ Creating dashboard launcher...")
@@ -329,8 +357,9 @@ if __name__ == '__main__':
         
         with open(launcher_script, 'w') as f:
             f.write(launcher_content)
-        
-        launcher_script.chmod(0o755)
+
+        if platform.system() != "Windows":
+            launcher_script.chmod(0o755)
         
         print("   ✅ Dashboard launcher created")
     
@@ -375,7 +404,10 @@ if __name__ == '__main__':
         print()
         print("⏰ Automated Operations:")
         print("   Daily security audits run automatically at 6:00 AM")
-        print("   Check status: systemctl --user status sksecurity-audit.timer")
+        if platform.system() == "Windows":
+            print("   Check status: schtasks /Query /TN SKSecurityAudit")
+        else:
+            print("   Check status: systemctl --user status sksecurity-audit.timer")
         print()
         print("📁 Security Files:")
         print(f"   Configuration: {self.security_dir}/config/security.json")

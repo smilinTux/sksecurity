@@ -5,6 +5,7 @@ Real-time security monitoring and threat visualization
 """
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -13,7 +14,8 @@ import urllib.parse
 
 class SecurityDashboardHandler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        self.security_dir = Path("/home/cbrd21/clawd/skills/security-scanner")
+        workspace = Path(os.environ.get("SKSECURITY_WORKSPACE", Path.home() / "clawd"))
+        self.security_dir = workspace / "skills" / "security-scanner"
         self.db_path = self.security_dir / "security.db"
         super().__init__(*args, **kwargs)
     

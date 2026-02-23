@@ -12,12 +12,13 @@ const VERSION = "1.2.1";
 const PYTHON_PACKAGE = "sksecurity";
 
 function checkInstalled() {
-  try {
-    execSync(`python3 -c "import sksecurity"`, { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
+  for (const py of ["python3", "python"]) {
+    try {
+      execSync(`${py} -c "import sksecurity"`, { stdio: "pipe" });
+      return true;
+    } catch {}
   }
+  return false;
 }
 
 function run(args) {

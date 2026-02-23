@@ -22,7 +22,7 @@ import re
 
 class AdvancedSecuritySystem:
     def __init__(self):
-        self.workspace = Path("/home/cbrd21/clawd")
+        self.workspace = Path(os.environ.get("SKSECURITY_WORKSPACE", Path.home() / "clawd"))
         self.security_dir = self.workspace / "skills" / "security-scanner"
         self.db_path = self.security_dir / "security.db"
         self.quarantine_dir = self.workspace / "quarantine"
@@ -597,7 +597,7 @@ def main():
         # Run complete security audit
         security.enhanced_threat_intelligence()
         
-        skills_dir = Path("/home/cbrd21/clawd/skills")
+        skills_dir = self.workspace / "skills"
         if skills_dir.exists():
             for skill_path in skills_dir.iterdir():
                 if skill_path.is_dir():

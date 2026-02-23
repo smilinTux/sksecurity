@@ -5,6 +5,7 @@ Updates threat intel + scans all local skills + reports security status
 """
 
 import os
+import shutil
 import sys
 import subprocess
 import json
@@ -14,21 +15,34 @@ from datetime import datetime
 class SecurityAuditor:
     def __init__(self):
         self.script_dir = Path(__file__).parent
-        self.workspace = Path("/home/cbrd21/clawd")
+        self.workspace = Path(
+            os.environ.get("SKSECURITY_WORKSPACE", Path.home() / "clawd")
+        )
         self.skills_dir = self.workspace / "skills"
         self.update_script = self.script_dir / "update_threats.py"
         self.scanner_script = self.script_dir / "scan_skill.py"
-        
+
     def log(self, message, level="INFO"):
-        """Log with timestamp and level"""
+        """Log with timestamp and level."""
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] {level}: {message}")
-    
-    def run_command(self, cmd, description):
-        """Run a command and return success status"""
+
+    def run_command(self, args, description, cwd=None):
+        """Run a command list and return success status.
+
+        Args:
+            args: Command as a list of strings (cross-platform safe).
+            description: Human-readable label for logging.
+            cwd: Optional working directory.
+
+        Returns:
+            tuple[bool, str]: (success, stdout_or_stderr)
+        """
         self.log(f"Running: {description}")
         try:
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(
+                args, capture_output=True, text=True, timeout=300, cwd=cwd
+            )
             if result.returncode == 0:
                 self.log(f"✅ {description} completed successfully", "SUCCESS")
                 return True, result.stdout
@@ -41,91 +55,90 @@ class SecurityAuditor:
         except Exception as e:
             self.log(f"💥 {description} exception: {e}", "ERROR")
             return False, str(e)
-    
+
     def update_threat_intelligence(self):
-        """Update threat intelligence from all sources"""
+        """Update threat intelligence from all sources."""
         self.log("🔄 UPDATING THREAT INTELLIGENCE", "SECURITY")
-        
+
         success, output = self.run_command(
-            f"cd {self.workspace} && python3 {self.update_script}",
-            "Threat intelligence update"
+            [sys.executable, str(self.update_script)],
+            "Threat intelligence update",
+            cwd=str(self.workspace),
         )
-        
+
         if success:
-            # Extract threat count from output
-            lines = output.split('\n')
-            for line in lines:
+            for line in output.split("\n"):
                 if "total threats" in line:
                     self.log(f"📊 {line.strip()}", "SECURITY")
                     break
-        
+
         return success
-    
+
     def scan_all_skills(self):
-        """Scan all local skills for vulnerabilities"""
+        """Scan all local skills for vulnerabilities."""
         self.log("🔍 SCANNING ALL LOCAL SKILLS", "SECURITY")
-        
+
         if not self.skills_dir.exists():
             self.log("No skills directory found", "WARNING")
             return True, []
-        
+
         threats_found = []
         skills_scanned = 0
-        
+
         for skill_path in self.skills_dir.iterdir():
-            if skill_path.is_dir() and not skill_path.name.startswith('.'):
+            if skill_path.is_dir() and not skill_path.name.startswith("."):
                 skills_scanned += 1
                 self.log(f"Scanning: {skill_path.name}")
-                
+
                 success, output = self.run_command(
-                    f"cd {self.workspace} && python3 {self.scanner_script} {skill_path}",
-                    f"Security scan: {skill_path.name}"
+                    [sys.executable, str(self.scanner_script), str(skill_path)],
+                    f"Security scan: {skill_path.name}",
+                    cwd=str(self.workspace),
                 )
-                
-                # Parse scan results for threats
-                if not success:  # Exit code 1 = threats found
-                    lines = output.split('\n')
-                    for line in lines:
+
+                if not success:
+                    for line in output.split("\n"):
                         if "🔴 HIGH:" in line or "🔴 CRITICAL:" in line:
                             threats_found.append(f"{skill_path.name}: {line.strip()}")
                         elif "Critical:" in line or "High:" in line:
                             threats_found.append(f"{skill_path.name}: {line.strip()}")
-        
+
         self.log(f"📋 Scanned {skills_scanned} local skills", "SECURITY")
         return len(threats_found) == 0, threats_found
-    
+
     def check_system_security(self):
-        """Basic system security checks"""
+        """Basic system security checks."""
         self.log("🛡️ SYSTEM SECURITY CHECKS", "SECURITY")
-        
+
         checks = []
-        
-        # Check if security scanner is present
+
         if self.scanner_script.exists():
             checks.append("✅ Security scanner: Present")
         else:
             checks.append("❌ Security scanner: MISSING")
-        
-        # Check threat cache age
+
         cache_file = self.script_dir.parent / "references" / "threat_cache.json"
         if cache_file.exists():
             age_hours = (datetime.now().timestamp() - cache_file.stat().st_mtime) / 3600
-            if age_hours < 25:  # Less than 25 hours old
+            if age_hours < 25:
                 checks.append(f"✅ Threat cache: Fresh ({age_hours:.1f}h old)")
             else:
                 checks.append(f"⚠️ Threat cache: Stale ({age_hours:.1f}h old)")
         else:
             checks.append("❌ Threat cache: MISSING")
-        
-        # Check OpenClaw security
-        success, output = self.run_command(
-            "openclaw status | grep -E '(security|threat|scan)' || echo 'No security status'",
-            "OpenClaw security status"
-        )
-        
+
+        # Reason: openclaw CLI may not exist on Windows -- check first
+        if shutil.which("openclaw"):
+            success, output = self.run_command(
+                ["openclaw", "status"],
+                "OpenClaw security status",
+            )
+        else:
+            self.log("openclaw CLI not found, skipping status check", "WARNING")
+
         for check in checks:
             self.log(check, "SECURITY")
-        
+
         return checks
     
     def generate_security_report(self, threat_update_success, skills_safe, skill_threats, system_checks):
