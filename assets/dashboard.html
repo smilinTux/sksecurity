@@ -1,150 +1,445 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>🛡️ SKSecurity Enterprise Dashboard</title>
+    <title>SKSecurity Enterprise Dashboard</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { 
-            font-family: system-ui, -apple-system, sans-serif;
-            margin: 0; padding: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; min-height: 100vh;
+        :root {
+            --bg-primary: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --border: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --yellow: #eab308;
+            --orange: #f97316;
+            --red: #ef4444;
+            --cyan: #06b6d4;
         }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        /* Header */
         .header {
-            background: rgba(0,0,0,0.2);
-            padding: 1rem 2rem;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
-        .logo { display: flex; align-items: center; gap: 1rem; }
-        .logo img { width: 40px; height: 40px; }
-        .status { padding: 0.5rem 1rem; border-radius: 20px; font-weight: bold; }
-        .secure { background: #4caf50; }
-        .alert { background: #f44336; }
-        .dashboard { 
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem; padding: 2rem; max-width: 1400px; margin: 0 auto;
+        .header-left { display: flex; align-items: center; gap: 0.75rem; }
+        .header-left h1 { font-size: 1.1rem; font-weight: 600; }
+        .header-right { display: flex; align-items: center; gap: 1rem; }
+        .status-badge {
+            padding: 0.3rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
+        .status-secure { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+        .status-warning { background: rgba(234,179,8,0.15); color: var(--yellow); border: 1px solid rgba(234,179,8,0.3); }
+        .status-critical { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+        .last-update { font-size: 0.75rem; color: var(--text-secondary); }
+        /* Layout */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .span-2 { grid-column: span 2; }
+        .span-3 { grid-column: span 3; }
+        .span-4 { grid-column: span 4; }
+        /* Cards */
         .card {
-            background: rgba(255,255,255,0.15);
-            border-radius: 12px; padding: 1.5rem;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
         }
-        .card h2 { margin: 0 0 1rem 0; color: #e3f2fd; }
-        .metric { 
-            display: flex; justify-content: space-between;
-            padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
         }
-        .metric:last-child { border-bottom: none; }
-        .value { font-weight: bold; font-size: 1.2rem; }
-        .threat { 
-            background: rgba(244, 67, 54, 0.2);
-            padding: 1rem; margin: 0.5rem 0; border-radius: 8px;
-            border-left: 4px solid #f44336;
+        .card-title { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+        /* Metric tiles */
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            padding: 0 1.5rem;
+            margin-top: 1rem;
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
         }
-        .footer { text-align: center; padding: 2rem; opacity: 0.7; }
+        .metric-tile {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+        }
+        .metric-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .metric-value { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+        .metric-sub { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.35rem; }
+        /* Severity colors */
+        .sev-critical { color: var(--red); }
+        .sev-high { color: var(--orange); }
+        .sev-medium { color: var(--yellow); }
+        .sev-low { color: var(--green); }
+        .sev-info { color: var(--cyan); }
+        /* Severity bars */
+        .severity-bars { display: flex; flex-direction: column; gap: 0.5rem; }
+        .sev-row { display: flex; align-items: center; gap: 0.75rem; }
+        .sev-label { font-size: 0.75rem; min-width: 60px; text-transform: uppercase; font-weight: 600; }
+        .sev-bar-bg { flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+        .sev-bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .sev-count { font-size: 0.8rem; min-width: 30px; text-align: right; font-weight: 600; }
+        /* Event list */
+        .event-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 400px; overflow-y: auto; }
+        .event-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.02);
+            border-radius: 0.5rem;
+            border-left: 3px solid var(--border);
+            font-size: 0.85rem;
+        }
+        .event-item.ev-critical { border-left-color: var(--red); }
+        .event-item.ev-high { border-left-color: var(--orange); }
+        .event-item.ev-medium { border-left-color: var(--yellow); }
+        .event-item.ev-low { border-left-color: var(--green); }
+        .event-item.ev-info { border-left-color: var(--cyan); }
+        .event-sev {
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            min-width: 55px;
+            text-align: center;
+        }
+        .event-sev.ev-critical { background: rgba(239,68,68,0.15); color: var(--red); }
+        .event-sev.ev-high { background: rgba(249,115,22,0.15); color: var(--orange); }
+        .event-sev.ev-medium { background: rgba(234,179,8,0.15); color: var(--yellow); }
+        .event-sev.ev-low { background: rgba(34,197,94,0.15); color: var(--green); }
+        .event-sev.ev-info { background: rgba(6,182,212,0.15); color: var(--cyan); }
+        .event-body { flex: 1; }
+        .event-msg { color: var(--text-primary); }
+        .event-meta { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem; }
+        /* Quarantine table */
+        .q-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .q-table th { text-align: left; padding: 0.5rem; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); }
+        .q-table td { padding: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        /* System gauge */
+        .gauge-row { display: flex; gap: 1.5rem; }
+        .gauge { flex: 1; }
+        .gauge-label { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.35rem; }
+        .gauge-bar-bg { height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; }
+        .gauge-bar { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
+        .gauge-val { font-size: 0.8rem; font-weight: 600; margin-top: 0.25rem; }
+        /* Empty state */
+        .empty-state { text-align: center; padding: 2rem; color: var(--text-secondary); font-size: 0.85rem; }
+        /* Footer */
+        .footer { text-align: center; padding: 1rem; font-size: 0.7rem; color: var(--text-secondary); }
+        .footer a { color: var(--accent); text-decoration: none; }
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .dashboard { grid-template-columns: repeat(2, 1fr); }
+            .metrics-row { grid-template-columns: repeat(2, 1fr); }
+            .span-2, .span-3, .span-4 { grid-column: span 2; }
+        }
+        @media (max-width: 640px) {
+            .dashboard { grid-template-columns: 1fr; }
+            .metrics-row { grid-template-columns: 1fr; }
+            .span-2, .span-3, .span-4 { grid-column: span 1; }
+            .gauge-row { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
+    <!-- Header -->
     <div class="header">
-        <div class="logo">
-            <h1>🛡️ SKSecurity Enterprise</h1>
+        <div class="header-left">
+            <h1>SKSecurity Enterprise</h1>
         </div>
-        <div class="status secure" id="status">SECURE</div>
+        <div class="header-right">
+            <span class="status-badge status-secure" id="global-status">SECURE</span>
+            <span class="last-update" id="last-update">--</span>
+        </div>
     </div>
-    
+
+    <!-- Metric tiles -->
+    <div class="metrics-row">
+        <div class="metric-tile">
+            <div class="metric-label">Total Events</div>
+            <div class="metric-value" id="m-total">--</div>
+            <div class="metric-sub" id="m-total-sub">loading</div>
+        </div>
+        <div class="metric-tile">
+            <div class="metric-label">Unacknowledged</div>
+            <div class="metric-value sev-critical" id="m-unack">--</div>
+            <div class="metric-sub">require attention</div>
+        </div>
+        <div class="metric-tile">
+            <div class="metric-label">Quarantined Files</div>
+            <div class="metric-value sev-high" id="m-quarantine">--</div>
+            <div class="metric-sub" id="m-qsub">--</div>
+        </div>
+        <div class="metric-tile">
+            <div class="metric-label">Threat Patterns</div>
+            <div class="metric-value" style="color:var(--accent)" id="m-patterns">--</div>
+            <div class="metric-sub" id="m-intel-sub">--</div>
+        </div>
+    </div>
+
+    <!-- Grid -->
     <div class="dashboard">
+        <!-- Severity breakdown -->
         <div class="card">
-            <h2>📊 Security Overview</h2>
-            <div class="metric">
-                <span>Protected Agents</span>
-                <span class="value" id="agent-count">-</span>
-            </div>
-            <div class="metric">
-                <span>Threat Patterns</span>
-                <span class="value" id="threat-count">-</span>
-            </div>
-            <div class="metric">
-                <span>Last Scan</span>
-                <span class="value" id="last-scan">-</span>
-            </div>
-            <div class="metric">
-                <span>Security Score</span>
-                <span class="value" id="security-score">-</span>
+            <div class="card-header"><span class="card-title">Severity Breakdown</span></div>
+            <div class="severity-bars" id="sev-bars">
+                <div class="empty-state">Loading...</div>
             </div>
         </div>
-        
+
+        <!-- System resources -->
         <div class="card">
-            <h2>🚨 Active Threats</h2>
-            <div id="threats">
-                <div style="text-align:center;opacity:0.7;padding:2rem;">
-                    No active threats detected ✅
+            <div class="card-header"><span class="card-title">System Resources</span></div>
+            <div class="gauge-row" id="gauges">
+                <div class="gauge">
+                    <div class="gauge-label">CPU</div>
+                    <div class="gauge-bar-bg"><div class="gauge-bar" id="cpu-bar" style="width:0%;background:var(--green)"></div></div>
+                    <div class="gauge-val" id="cpu-val">--</div>
+                </div>
+                <div class="gauge">
+                    <div class="gauge-label">Memory</div>
+                    <div class="gauge-bar-bg"><div class="gauge-bar" id="mem-bar" style="width:0%;background:var(--cyan)"></div></div>
+                    <div class="gauge-val" id="mem-val">--</div>
+                </div>
+                <div class="gauge">
+                    <div class="gauge-label">Processes</div>
+                    <div class="gauge-bar-bg"><div class="gauge-bar" id="proc-bar" style="width:0%;background:var(--accent)"></div></div>
+                    <div class="gauge-val" id="proc-val">--</div>
                 </div>
             </div>
         </div>
-        
-        <div class="card">
-            <h2>📈 Security Metrics</h2>
-            <div class="metric">
-                <span>Detection Rate</span>
-                <span class="value">99.7%</span>
+
+        <!-- Threat intelligence -->
+        <div class="card span-2">
+            <div class="card-header"><span class="card-title">Threat Intelligence Sources</span></div>
+            <div id="intel-sources"><div class="empty-state">Loading...</div></div>
+        </div>
+
+        <!-- Recent events -->
+        <div class="card span-2">
+            <div class="card-header">
+                <span class="card-title">Recent Events</span>
+                <button onclick="ackAll()" style="background:var(--accent);color:#fff;border:none;padding:0.3rem 0.75rem;border-radius:6px;font-size:0.75rem;cursor:pointer;">Ack All</button>
             </div>
-            <div class="metric">
-                <span>Response Time</span>
-                <span class="value">&lt;15min</span>
-            </div>
-            <div class="metric">
-                <span>False Positives</span>
-                <span class="value">&lt;3%</span>
-            </div>
-            <div class="metric">
-                <span>Coverage</span>
-                <span class="value">100%</span>
+            <div class="event-list" id="event-list">
+                <div class="empty-state">Loading events...</div>
             </div>
         </div>
-        
-        <div class="card">
-            <h2>⚙️ Operations</h2>
-            <div class="metric">
-                <span>Auto-Quarantine</span>
-                <span class="value" style="color:#4caf50;">✅ Active</span>
-            </div>
-            <div class="metric">
-                <span>Threat Intelligence</span>
-                <span class="value" style="color:#4caf50;">✅ Updated</span>
-            </div>
-            <div class="metric">
-                <span>Daily Audit</span>
-                <span class="value" style="color:#4caf50;">✅ Scheduled</span>
-            </div>
-            <div class="metric">
-                <span>System Health</span>
-                <span class="value" style="color:#4caf50;">✅ Optimal</span>
+
+        <!-- Quarantine queue -->
+        <div class="card span-2">
+            <div class="card-header"><span class="card-title">Quarantine Queue</span></div>
+            <div id="quarantine-list">
+                <div class="empty-state">Loading...</div>
             </div>
         </div>
     </div>
-    
+
     <div class="footer">
-        <p>SKSecurity Enterprise • Powered by smilinTux • Enterprise-grade AI security</p>
-        <p>🌐 <a href="https://github.com/smilinTux/SKSecurity" style="color: #90caf9;">GitHub</a> • 
-           📖 <a href="https://moltbook.com/security" style="color: #90caf9;">Documentation</a> • 
-           💬 <a href="https://discord.gg/sksecurity" style="color: #90caf9;">Support</a></p>
+        SKSecurity Enterprise &middot; Powered by smilinTux &middot;
+        <a href="https://github.com/smilinTux/SKSecurity">GitHub</a>
     </div>
-    
+
     <script>
-        // Simulate real-time updates
-        function updateDashboard() {
-            document.getElementById('agent-count').textContent = Math.floor(Math.random() * 50) + 10;
-            document.getElementById('threat-count').textContent = Math.floor(Math.random() * 200) + 100;
-            document.getElementById('last-scan').textContent = new Date().toLocaleTimeString();
-            document.getElementById('security-score').textContent = (Math.random() * 20 + 80).toFixed(1) + '%';
+        const API = window.location.origin;
+        let refreshTimer;
+
+        // ---- Fetch helpers ----
+        async function get(path) {
+            const r = await fetch(`${API}${path}`);
+            return r.json();
         }
-        
-        updateDashboard();
-        setInterval(updateDashboard, 30000);
+        async function post(path, body) {
+            const r = await fetch(`${API}${path}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body || {}) });
+            return r.json();
+        }
+
+        // ---- Render helpers ----
+        function sevColor(sev) {
+            const s = (sev || '').toLowerCase();
+            if (s === 'critical') return 'var(--red)';
+            if (s === 'high') return 'var(--orange)';
+            if (s === 'medium') return 'var(--yellow)';
+            if (s === 'low') return 'var(--green)';
+            return 'var(--cyan)';
+        }
+        function sevClass(sev) { return 'ev-' + (sev || 'info').toLowerCase(); }
+        function timeAgo(iso) {
+            const d = new Date(iso);
+            const s = Math.floor((Date.now() - d.getTime()) / 1000);
+            if (s < 60) return s + 's ago';
+            if (s < 3600) return Math.floor(s/60) + 'm ago';
+            if (s < 86400) return Math.floor(s/3600) + 'h ago';
+            return Math.floor(s/86400) + 'd ago';
+        }
+        function gaugeColor(pct) {
+            if (pct > 90) return 'var(--red)';
+            if (pct > 75) return 'var(--orange)';
+            if (pct > 50) return 'var(--yellow)';
+            return 'var(--green)';
+        }
+
+        // ---- Overview fetch ----
+        async function refresh() {
+            try {
+                const data = await get('/api/overview');
+                renderOverview(data);
+            } catch (e) {
+                console.error('Dashboard refresh failed:', e);
+            }
+        }
+
+        function renderOverview(d) {
+            const stats = d.stats || {};
+            const sys = d.system || {};
+            const q = d.quarantine || {};
+            const intel = d.intel || {};
+            const events = d.recent_events || [];
+
+            // Global status
+            const unack = stats.unacknowledged || 0;
+            const critCount = (stats.by_severity || {}).critical || (stats.by_severity || {}).CRITICAL || 0;
+            const statusEl = document.getElementById('global-status');
+            if (critCount > 0) { statusEl.textContent = 'CRITICAL'; statusEl.className = 'status-badge status-critical'; }
+            else if (unack > 5) { statusEl.textContent = 'WARNING'; statusEl.className = 'status-badge status-warning'; }
+            else { statusEl.textContent = 'SECURE'; statusEl.className = 'status-badge status-secure'; }
+
+            document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+            // Metrics
+            document.getElementById('m-total').textContent = stats.total_events || 0;
+            document.getElementById('m-total-sub').textContent = Object.keys(stats.by_type || {}).length + ' event types';
+            document.getElementById('m-unack').textContent = unack;
+            document.getElementById('m-quarantine').textContent = (q.active || 0);
+            document.getElementById('m-qsub').textContent = (q.total || 0) + ' total, ' + (q.restored || 0) + ' restored';
+            document.getElementById('m-patterns').textContent = intel.total_patterns || 0;
+            document.getElementById('m-intel-sub').textContent = (intel.sources || []).length + ' sources, last: ' + (intel.last_update || 'never');
+
+            // Severity bars
+            const sevs = stats.by_severity || {};
+            const maxSev = Math.max(...Object.values(sevs), 1);
+            const sevOrder = ['critical', 'CRITICAL', 'high', 'HIGH', 'medium', 'MEDIUM', 'low', 'LOW', 'info', 'INFO'];
+            const merged = {};
+            for (const k of Object.keys(sevs)) { merged[k.toLowerCase()] = (merged[k.toLowerCase()] || 0) + sevs[k]; }
+            let sevHtml = '';
+            for (const s of ['critical','high','medium','low','info']) {
+                const c = merged[s] || 0;
+                const pct = Math.max((c / maxSev) * 100, c > 0 ? 4 : 0);
+                sevHtml += `<div class="sev-row"><span class="sev-label sev-${s}">${s}</span><div class="sev-bar-bg"><div class="sev-bar" style="width:${pct}%;background:${sevColor(s)}"></div></div><span class="sev-count">${c}</span></div>`;
+            }
+            document.getElementById('sev-bars').innerHTML = sevHtml || '<div class="empty-state">No events recorded</div>';
+
+            // System gauges
+            const cpu = sys.cpu_percent || 0;
+            const mem = sys.memory_percent || 0;
+            const procs = sys.process_count || 0;
+            document.getElementById('cpu-bar').style.width = cpu + '%';
+            document.getElementById('cpu-bar').style.background = gaugeColor(cpu);
+            document.getElementById('cpu-val').textContent = cpu.toFixed(1) + '%';
+            document.getElementById('mem-bar').style.width = mem + '%';
+            document.getElementById('mem-bar').style.background = gaugeColor(mem);
+            document.getElementById('mem-val').textContent = mem.toFixed(1) + '%';
+            const procPct = Math.min(procs / 10, 100);
+            document.getElementById('proc-bar').style.width = procPct + '%';
+            document.getElementById('proc-val').textContent = procs;
+
+            // Intel sources
+            const sources = intel.sources || [];
+            if (sources.length) {
+                let ih = '<div style="display:flex;flex-direction:column;gap:0.4rem;">';
+                for (const s of sources) {
+                    const dot = s.enabled ? '<span style="color:var(--green)">&#9679;</span>' : '<span style="color:var(--text-secondary)">&#9675;</span>';
+                    const fetched = s.last_fetch ? timeAgo(s.last_fetch) : 'never';
+                    ih += `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;">${dot} <strong>${s.name}</strong> <span style="color:var(--text-secondary);font-size:0.75rem;">last fetch: ${fetched}</span></div>`;
+                }
+                ih += '</div>';
+                document.getElementById('intel-sources').innerHTML = ih;
+            } else {
+                document.getElementById('intel-sources').innerHTML = '<div class="empty-state">No intelligence sources configured</div>';
+            }
+
+            // Events
+            if (events.length) {
+                let eh = '';
+                for (const ev of events) {
+                    const sc = sevClass(ev.severity);
+                    eh += `<div class="event-item ${sc}"><span class="event-sev ${sc}">${ev.severity}</span><div class="event-body"><div class="event-msg">${escHtml(ev.message || ev.event_type)}</div><div class="event-meta">${ev.source || ''} &middot; ${ev.event_type} &middot; ${timeAgo(ev.timestamp)}</div></div></div>`;
+                }
+                document.getElementById('event-list').innerHTML = eh;
+            } else {
+                document.getElementById('event-list').innerHTML = '<div class="empty-state">No security events recorded</div>';
+            }
+
+            // Quarantine
+            renderQuarantine(q);
+        }
+
+        async function renderQuarantine(counts) {
+            try {
+                const data = await get('/api/quarantine');
+                const recs = data.records || [];
+                if (!recs.length) {
+                    document.getElementById('quarantine-list').innerHTML = '<div class="empty-state">No files in quarantine</div>';
+                    return;
+                }
+                let h = '<table class="q-table"><thead><tr><th>File</th><th>Threat</th><th>Severity</th><th>Quarantined</th></tr></thead><tbody>';
+                for (const r of recs) {
+                    const fname = r.original_path.split('/').pop();
+                    h += `<tr><td title="${escHtml(r.original_path)}">${escHtml(fname)}</td><td>${escHtml(r.threat_type)}</td><td><span class="sev-${r.severity}">${r.severity}</span></td><td>${timeAgo(r.quarantined_at)}</td></tr>`;
+                }
+                h += '</tbody></table>';
+                document.getElementById('quarantine-list').innerHTML = h;
+            } catch (e) {
+                document.getElementById('quarantine-list').innerHTML = '<div class="empty-state">Failed to load quarantine data</div>';
+            }
+        }
+
+        function escHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+        async function ackAll() {
+            await post('/api/events/ack-all', {});
+            refresh();
+        }
+
+        // Boot
+        refresh();
+        refreshTimer = setInterval(refresh, 10000);
     </script>
 </body>
 </html>

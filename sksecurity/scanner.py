@@ -188,10 +188,10 @@ class SecurityScanner:
                             SecurityEvent(
                                 timestamp=datetime.now(),
                                 event_type="SCAN_ERROR",
-                                severity="WARNING", 
+                                severity="WARNING",
                                 source="scanner",
-                                description=f"Error scanning {file_path}: {e}",
-                                metadata={"file_path": str(file_path), "error": str(e)}
+                                message=f"Error scanning {file_path}: {e}",
+                                details={"file_path": str(file_path), "error": str(e)}
                             )
                         )
         
@@ -224,8 +224,8 @@ class SecurityScanner:
                     event_type="SECURITY_SCAN",
                     severity="INFO" if risk_score < 60 else "HIGH" if risk_score < 80 else "CRITICAL",
                     source="scanner",
-                    description=f"Security scan completed: {summary}",
-                    metadata={
+                    message=f"Security scan completed: {summary}",
+                    details={
                         "target_path": str(target_path),
                         "risk_score": risk_score,
                         "threat_count": len(threats),
