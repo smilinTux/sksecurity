@@ -8,6 +8,7 @@ import os
 import sys
 import click
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +23,7 @@ from .monitor import SecurityMonitor
 from .quarantine import QuarantineManager
 from .email_screener import EmailScreener
 from .secret_guard import SecretGuard, GuardResult
+from .pdf_report import generate_audit_pdf
 
 @click.group()
 @click.version_option(__version__, prog_name="sksecurity")
@@ -326,33 +328,40 @@ def audit(ctx, export, output_format):
     config = SecurityConfig.load(ctx.obj['config'])
     
     click.echo("🛡️ Running comprehensive security audit...")
-    
+
     # Collect audit data
     audit_data = {
-        'timestamp': click.datetime.now().isoformat(),
+        'timestamp': datetime.now().isoformat(),
         'version': __version__,
         'threat_intelligence': ThreatIntelligence(config=config).get_status(),
         'quarantine': QuarantineManager(config=config).get_stats(),
         'database': SecurityDatabase(config=config).get_stats(),
         'configuration': config.get_summary()
     }
-    
+
     # Format output
     if output_format == 'json':
         output = json.dumps(audit_data, indent=2)
+        if export:
+            with open(export, 'w') as f:
+                f.write(output)
+            click.echo(f"📊 Audit report exported: {export}")
+        else:
+            click.echo(output)
     elif output_format == 'pdf':
-        # TODO: Generate PDF report
-        output = "PDF export not implemented yet"
+        pdf_bytes = generate_audit_pdf(audit_data)
+        out_path = export or 'security-audit.pdf'
+        with open(out_path, 'wb') as f:
+            f.write(pdf_bytes)
+        click.echo(f"📄 PDF audit report written: {out_path}")
     else:
         output = format_audit_report(audit_data)
-    
-    # Export or display
-    if export:
-        with open(export, 'w') as f:
-            f.write(output)
-        click.echo(f"📊 Audit report exported: {export}")
-    else:
-        click.echo(output)
+        if export:
+            with open(export, 'w') as f:
+                f.write(output)
+            click.echo(f"📊 Audit report exported: {export}")
+        else:
+            click.echo(output)
 
 @cli.command()
 @click.pass_context

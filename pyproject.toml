@@ -37,8 +37,6 @@ classifiers = [
 dependencies = [
     "click>=8.0.0",
     "pyyaml>=6.0",
-    "flask>=2.3.0",
-    "flask-cors>=4.0.0",
     "sqlalchemy>=2.0.0",
     "cryptography>=41.0.0",
     "requests>=2.31.0",
@@ -48,6 +46,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+web = [
+    "flask>=2.3.0",
+    "flask-cors>=4.0.0",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
@@ -63,6 +65,10 @@ Repository = "https://github.com/smilinTux/sksecurity"
 
 [project.scripts]
 sksecurity = "sksecurity.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
 
 [tool.setuptools.packages.find]
 include = ["sksecurity*"]

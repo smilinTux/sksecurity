@@ -29,6 +29,9 @@ watchdog>=3.0.0
 # Email parsing
 email-validator>=2.0.0
 
+# PDF report generation (audit --format pdf)
+reportlab>=3.6.0
+
 # Development and testing (dev-only)
 pytest>=7.4.0
 pytest-cov>=4.1.0

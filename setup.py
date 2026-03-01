@@ -31,7 +31,8 @@ else:
         "requests>=2.31.0",
         "cryptography>=41.0.0",
         "sqlalchemy>=2.0.0",
-        "psutil>=5.9.0"
+        "psutil>=5.9.0",
+        "reportlab>=3.6.0",
     ]
 
 # Filter out built-in modules

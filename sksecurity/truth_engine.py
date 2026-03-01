@@ -1,37 +1,42 @@
 """
-SKSecurity Truth Engine -- Neuresthetics seed integration.
+SKSecurity Truth Engine — Neuresthetics seed integration.
 
-Uses the Steel Man Collider from skmemory to evaluate the truthfulness
-of security decisions, verify threat assessments, and generate
-adversarial reasoning prompts that help an AI *explain* its security
-verdicts in a rigorous, dialectic fashion.
+Uses the Steel Man Collider to evaluate the truthfulness of security
+decisions, verify threat assessments, and generate adversarial reasoning
+prompts that help an AI *explain* its security verdicts rigorously.
 
-The engine works even when skmemory is not installed: it falls back to
-a minimal built-in prompt generator so SKSecurity never hard-depends on
-skmemory at import time.
+Import chain: skseed (preferred) > skmemory (legacy) > built-in fallback.
+The engine always works — it degrades gracefully when dependencies are missing.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 # ──────────────────────────────────────────────────────────
-# Lazy import: skmemory is an *optional* dependency
+# Lazy import: try skseed first, then skmemory, then fallback
 # ──────────────────────────────────────────────────────────
-_SKMEMORY_AVAILABLE: Optional[bool] = None
+_BACKEND: Optional[str] = None
 
 
-def _check_skmemory() -> bool:
-    """Return True if skmemory is importable."""
-    global _SKMEMORY_AVAILABLE
-    if _SKMEMORY_AVAILABLE is None:
+def _resolve_backend() -> str:
+    """Determine which backend is available: skseed > skmemory > builtin."""
+    global _BACKEND
+    if _BACKEND is not None:
+        return _BACKEND
+
+    try:
+        import skseed.framework  # noqa: F401
+        _BACKEND = "skseed"
+    except ImportError:
         try:
             import skmemory.steelman  # noqa: F401
-            _SKMEMORY_AVAILABLE = True
+            _BACKEND = "skmemory"
         except ImportError:
-            _SKMEMORY_AVAILABLE = False
-    return _SKMEMORY_AVAILABLE
+            _BACKEND = "builtin"
+
+    return _BACKEND
 
 
 @dataclass
@@ -83,9 +88,8 @@ class TruthVerdict:
 class TruthEngine:
     """Bridge between SKSecurity and the Neuresthetics Steel Man Collider.
 
-    When skmemory is installed the engine delegates to its ``SeedFramework``
-    for full 6-stage adversarial reasoning.  Without skmemory it falls back
-    to a lightweight built-in prompt so SKSecurity keeps working.
+    Import priority: skseed (standalone logic kernel) > skmemory (legacy
+    location) > built-in lightweight fallback.
 
     Args:
         framework_path: Optional path to a custom ``seed.json``.
@@ -94,9 +98,17 @@ class TruthEngine:
     def __init__(self, framework_path: Optional[str] = None) -> None:
         self._framework: Any = None
         self._framework_path = framework_path
-        self._skmemory = _check_skmemory()
+        self._backend = _resolve_backend()
 
-        if self._skmemory:
+        if self._backend == "skseed":
+            from skseed.framework import load_seed_framework, get_default_framework
+
+            if framework_path:
+                self._framework = load_seed_framework(framework_path)
+            if self._framework is None:
+                self._framework = get_default_framework()
+
+        elif self._backend == "skmemory":
             from skmemory.steelman import load_seed_framework, get_default_framework
 
             if framework_path:
@@ -109,9 +121,14 @@ class TruthEngine:
         """True when the full Neuresthetics seed framework is loaded.
 
         Returns:
-            bool: Whether skmemory integration is active.
+            bool: Whether skseed or skmemory integration is active.
         """
-        return self._skmemory and self._framework is not None
+        return self._backend in ("skseed", "skmemory") and self._framework is not None
+
+    @property
+    def backend(self) -> str:
+        """Which backend is being used: skseed, skmemory, or builtin."""
+        return self._backend
 
     def verify_threat(self, threat_description: str) -> TruthVerdict:
         """Run a threat assessment through the collider.
@@ -222,7 +239,7 @@ class TruthEngine:
 
     @staticmethod
     def _fallback_prompt(proposition: str, context: str) -> str:
-        """Minimal built-in reasoning prompt when skmemory is unavailable.
+        """Minimal built-in reasoning prompt when no framework package is available.
 
         Args:
             proposition: The claim to evaluate.

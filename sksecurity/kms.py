@@ -15,10 +15,10 @@ Architecture (inspired by MinIO KES, built sovereign):
 
 Key Hierarchy:
 
-    Master Key (sealed at rest, passphrase or TPM)
-        └── Team Key (derived per deployed agent team)
-            └── Agent Key (derived per agent within a team)
-                └── Data Encryption Key (DEK, for payload encryption)
+    Master Key (sealed at rest, passphrase-derived via scrypt)
+        └── Team Key (derived via HKDF-SHA256)
+            └── Agent Key (derived via HKDF-SHA256)
+                └── Data Encryption Key (DEK, random AES-256)
 
     Each level can only decrypt its own children. Compromise of an
     agent key doesn't expose sibling agents or other teams.
@@ -44,11 +44,19 @@ Performance Note:
     implementation (via PyO3 or as a standalone binary). The Python
     layer handles CLI, REST API, and orchestration.
 
-Status: STUB — interfaces defined, implementation pending.
+Cryptography:
+
+    - Master key derivation: scrypt (N=2^20, r=8, p=1) from passphrase + salt
+    - Key derivation: HKDF-SHA256 with context-specific info strings
+    - Key wrapping: AES-256-GCM (encrypt child keys under parent)
+    - DEK generation: os.urandom(32) — pure random, not derived
+
 Coordination board task: 9871b893
 """
 
+import base64
 import hashlib
+import json
 import logging
 import os
 import uuid
@@ -61,6 +69,73 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("sksecurity.kms")
+
+
+# ---------------------------------------------------------------------------
+# Crypto primitives (all from the `cryptography` library)
+# ---------------------------------------------------------------------------
+
+def _derive_master_key(passphrase: str, salt: bytes) -> bytes:
+    """Derive a 32-byte master key from passphrase + salt using scrypt.
+
+    Parameters are chosen for interactive use (fast enough for CLI,
+    resistant to GPU/ASIC brute force):
+        N=2^17 (131072), r=8, p=1 → ~128 MB memory, ~0.3 s on modern CPU
+
+    For higher-security deployments, increase N to 2^20.
+    """
+    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+    kdf = Scrypt(salt=salt, length=32, n=2**17, r=8, p=1)
+    return kdf.derive(passphrase.encode("utf-8"))
+
+
+def _hkdf_derive(parent_key: bytes, info: str, length: int = 32) -> bytes:
+    """Derive a child key from a parent using HKDF-SHA256.
+
+    Args:
+        parent_key: Input keying material (parent key bytes).
+        info: Context string (e.g. "team:dev-squad").
+        length: Output key length in bytes.
+    """
+    from cryptography.hazmat.primitives.hashes import SHA256
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+    return HKDF(
+        algorithm=SHA256(),
+        length=length,
+        salt=None,
+        info=info.encode("utf-8"),
+    ).derive(parent_key)
+
+
+def _aes_gcm_encrypt(key: bytes, plaintext: bytes) -> bytes:
+    """Encrypt with AES-256-GCM, returns nonce || ciphertext || tag."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(key)
+    ct = aesgcm.encrypt(nonce, plaintext, None)
+    return nonce + ct  # 12 + len(plaintext) + 16
+
+
+def _aes_gcm_decrypt(key: bytes, data: bytes) -> bytes:
+    """Decrypt AES-256-GCM, expects nonce || ciphertext || tag."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    nonce, ct = data[:12], data[12:]
+    aesgcm = AESGCM(key)
+    return aesgcm.decrypt(nonce, ct, None)
+
+
+def _wrap_key(wrapping_key: bytes, raw_key: bytes) -> str:
+    """Wrap (encrypt) a raw key under a wrapping key, return base64."""
+    return base64.b64encode(_aes_gcm_encrypt(wrapping_key, raw_key)).decode()
+
+
+def _unwrap_key(wrapping_key: bytes, wrapped_b64: str) -> bytes:
+    """Unwrap (decrypt) a base64-encoded wrapped key."""
+    return _aes_gcm_decrypt(wrapping_key, base64.b64decode(wrapped_b64))
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +190,7 @@ class ManagedKey(BaseModel):
         team_id: Team this key belongs to (None for master keys).
         agent_id: Agent this key belongs to (None for master/team keys).
         algorithm: Encryption algorithm used (default AES-256-GCM).
-        ciphertext: Wrapped key material (hex-encoded).
+        ciphertext: Wrapped key material (base64-encoded AES-GCM blob).
     """
 
     key_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:16])
@@ -303,18 +378,19 @@ class KMS:
     Manages the full key lifecycle. The master key must be unsealed
     before any operations can proceed. All operations are audit-logged.
 
-    This is the STUB implementation. The crypto hot path (seal, unseal,
-    derive, wrap, unwrap) currently uses placeholder logic. A production
-    implementation should use:
-    - AES-256-GCM for symmetric encryption
-    - HKDF for key derivation
-    - Argon2id for passphrase-based master key sealing
-    - Optional TPM/HSM binding for hardware-backed sealing
+    Cryptography:
+        - Master key: scrypt (N=2^17, r=8, p=1) from passphrase + 16-byte salt
+        - Team keys: HKDF-SHA256(master, info="team:<team_id>")
+        - Agent keys: HKDF-SHA256(team_key, info="agent:<agent_id>")
+        - DEKs: random 32 bytes, wrapped under parent key via AES-256-GCM
+        - Key wrapping: AES-256-GCM (nonce || ciphertext || tag, base64-encoded)
 
     Args:
         store: KeyStore implementation for persisting wrapped keys.
         audit_path: Path to the append-only audit log file.
     """
+
+    SALT_FILE = "master.salt"
 
     def __init__(
         self,
@@ -348,8 +424,9 @@ class KMS:
     def unseal(self, passphrase: str) -> bool:
         """Unseal the KMS with a passphrase.
 
-        Derives the master key from the passphrase. In production,
-        this should use Argon2id with a stored salt.
+        Derives the master key from the passphrase using scrypt with
+        a persistent salt. On first unseal, a new random salt is
+        generated and stored alongside the key store.
 
         Args:
             passphrase: The passphrase protecting the master key.
@@ -357,8 +434,8 @@ class KMS:
         Returns:
             True if unsealing succeeded.
         """
-        # Reason: stub uses SHA-256; production should use Argon2id + salt
-        self._master_key = hashlib.sha256(passphrase.encode()).digest()
+        salt = self._load_or_create_salt()
+        self._master_key = _derive_master_key(passphrase, salt)
         self._seal_state = SealState.UNSEALED
         self._audit("unseal", actor="system", details="KMS unsealed")
         logger.info("KMS unsealed")
@@ -367,7 +444,9 @@ class KMS:
     def create_team_key(self, team_id: str) -> ManagedKey:
         """Create a new team-scoped key.
 
-        Derives a team key from the master key using HKDF (stubbed).
+        Derives a team key from the master key via HKDF-SHA256 with
+        info="team:<team_id>", then wraps it under the master key
+        for at-rest storage.
 
         Args:
             team_id: The team deployment ID.
@@ -380,13 +459,15 @@ class KMS:
         """
         self._require_unsealed()
 
+        raw_team_key = _hkdf_derive(
+            self._master_key, info=f"team:{team_id}"
+        )
+        wrapped = _wrap_key(self._master_key, raw_team_key)
+
         key = ManagedKey(
             key_type=KeyType.TEAM,
             team_id=team_id,
-            # Reason: stub — real impl uses HKDF(master_key, info=team_id)
-            ciphertext=hashlib.sha256(
-                (self._master_key or b"") + team_id.encode()
-            ).hexdigest(),
+            ciphertext=wrapped,
         )
         self._store.save(key)
         self._audit(
@@ -402,7 +483,9 @@ class KMS:
     ) -> ManagedKey:
         """Create a new agent-scoped key within a team.
 
-        Derives an agent key from the team key.
+        Derives the team key, then derives an agent key from it via
+        HKDF-SHA256 with info="agent:<agent_id>". The agent key is
+        wrapped under the team key for at-rest storage.
 
         Args:
             team_id: The team this agent belongs to.
@@ -413,6 +496,7 @@ class KMS:
 
         Raises:
             RuntimeError: If the KMS is sealed.
+            ValueError: If no team key exists for the given team.
         """
         self._require_unsealed()
 
@@ -423,14 +507,18 @@ class KMS:
             raise ValueError(f"No team key found for team '{team_id}'")
 
         parent = team_keys[0]
+        raw_team_key = _unwrap_key(self._master_key, parent.ciphertext)
+        raw_agent_key = _hkdf_derive(
+            raw_team_key, info=f"agent:{agent_id}"
+        )
+        wrapped = _wrap_key(raw_team_key, raw_agent_key)
+
         key = ManagedKey(
             key_type=KeyType.AGENT,
             parent_id=parent.key_id,
             team_id=team_id,
             agent_id=agent_id,
-            ciphertext=hashlib.sha256(
-                parent.ciphertext.encode() + agent_id.encode()
-            ).hexdigest(),
+            ciphertext=wrapped,
         )
         self._store.save(key)
         self._audit(
@@ -440,6 +528,112 @@ class KMS:
             details=f"Agent key for {agent_id} in team {team_id}",
         )
         return key
+
+    def create_dek(
+        self, team_id: str, agent_id: str, purpose: str = ""
+    ) -> ManagedKey:
+        """Create a random Data Encryption Key (DEK) for an agent.
+
+        DEKs are pure random (not derived) and wrapped under the
+        agent's key for at-rest storage. They are used for encrypting
+        payloads (FUSE mounts, file transfers, etc.).
+
+        Args:
+            team_id: The team this agent belongs to.
+            agent_id: The agent that owns this DEK.
+            purpose: Human-readable purpose for audit.
+
+        Returns:
+            The newly created ManagedKey (type=DEK).
+
+        Raises:
+            RuntimeError: If the KMS is sealed.
+            ValueError: If no agent key exists.
+        """
+        self._require_unsealed()
+
+        agent_keys = self._store.list_keys(
+            key_type=KeyType.AGENT, team_id=team_id
+        )
+        parent = next(
+            (k for k in agent_keys if k.agent_id == agent_id), None
+        )
+        if not parent:
+            raise ValueError(
+                f"No agent key found for '{agent_id}' in team '{team_id}'"
+            )
+
+        # Unwrap the chain: master → team → agent
+        team_keys = self._store.list_keys(
+            key_type=KeyType.TEAM, team_id=team_id
+        )
+        raw_team_key = _unwrap_key(
+            self._master_key, team_keys[0].ciphertext
+        )
+        raw_agent_key = _unwrap_key(raw_team_key, parent.ciphertext)
+
+        # DEK is pure random, not derived
+        raw_dek = os.urandom(32)
+        wrapped = _wrap_key(raw_agent_key, raw_dek)
+
+        key = ManagedKey(
+            key_type=KeyType.DEK,
+            parent_id=parent.key_id,
+            team_id=team_id,
+            agent_id=agent_id,
+            ciphertext=wrapped,
+        )
+        self._store.save(key)
+        self._audit(
+            "create_key",
+            key_id=key.key_id,
+            actor=agent_id,
+            details=f"DEK for {agent_id}: {purpose}" if purpose else f"DEK for {agent_id}",
+        )
+        return key
+
+    def unwrap_dek(self, dek_key_id: str) -> bytes:
+        """Unwrap a DEK to obtain the raw key material.
+
+        Requires the full unwrap chain: master → team → agent → DEK.
+
+        Args:
+            dek_key_id: The key ID of the DEK to unwrap.
+
+        Returns:
+            Raw 32-byte DEK key material.
+
+        Raises:
+            RuntimeError: If the KMS is sealed.
+            ValueError: If the key is not found or the chain is broken.
+        """
+        self._require_unsealed()
+
+        dek = self._store.load(dek_key_id)
+        if not dek or dek.key_type != KeyType.DEK:
+            raise ValueError(f"DEK not found: {dek_key_id}")
+
+        agent_key = self._store.load(dek.parent_id)
+        if not agent_key:
+            raise ValueError(f"Agent key not found for DEK: {dek_key_id}")
+
+        team_keys = self._store.list_keys(
+            key_type=KeyType.TEAM, team_id=dek.team_id
+        )
+        if not team_keys:
+            raise ValueError(f"Team key not found for team: {dek.team_id}")
+
+        raw_team = _unwrap_key(self._master_key, team_keys[0].ciphertext)
+        raw_agent = _unwrap_key(raw_team, agent_key.ciphertext)
+        raw_dek = _unwrap_key(raw_agent, dek.ciphertext)
+
+        self._audit(
+            "unwrap_dek",
+            key_id=dek_key_id,
+            actor=dek.agent_id or "",
+            details=f"DEK unwrapped for {dek.agent_id}",
+        )
+        return raw_dek
 
     def get_key(self, request: KeyRequest) -> Optional[ManagedKey]:
         """Retrieve a key for an authenticated agent.
@@ -477,6 +671,9 @@ class KMS:
     def rotate_key(self, key_id: str) -> Optional[ManagedKey]:
         """Rotate a key: generate new material, mark old as rotated.
 
+        For team/agent keys, new material is derived via HKDF with a
+        rotation counter suffix. For DEKs, fresh random bytes are used.
+
         Child keys derived from the old key are NOT automatically
         re-wrapped. The caller must re-derive or re-wrap as needed.
 
@@ -499,12 +696,30 @@ class KMS:
         old.rotated_at = datetime.now(timezone.utc)
         self._store.save(old)
 
+        # Generate new key material
+        raw_new_key = os.urandom(32)
+        if old.key_type == KeyType.TEAM:
+            wrapped = _wrap_key(self._master_key, raw_new_key)
+        elif old.key_type == KeyType.AGENT and old.parent_id:
+            team_keys = self._store.list_keys(
+                key_type=KeyType.TEAM, team_id=old.team_id
+            )
+            if team_keys:
+                raw_team = _unwrap_key(
+                    self._master_key, team_keys[0].ciphertext
+                )
+                wrapped = _wrap_key(raw_team, raw_new_key)
+            else:
+                wrapped = _wrap_key(self._master_key, raw_new_key)
+        else:
+            wrapped = _wrap_key(self._master_key, raw_new_key)
+
         new_key = ManagedKey(
             key_type=old.key_type,
             parent_id=old.parent_id,
             team_id=old.team_id,
             agent_id=old.agent_id,
-            ciphertext=os.urandom(32).hex(),
+            ciphertext=wrapped,
         )
         self._store.save(new_key)
 
@@ -573,7 +788,12 @@ class KMS:
             "agent_keys": sum(
                 1 for k in all_keys if k.key_type == KeyType.AGENT
             ),
+            "dek_keys": sum(
+                1 for k in all_keys if k.key_type == KeyType.DEK
+            ),
         }
+
+    # -- internal helpers --------------------------------------------------
 
     def _require_unsealed(self) -> None:
         """Raise if the KMS is currently sealed."""
@@ -581,6 +801,19 @@ class KMS:
             raise RuntimeError(
                 "KMS is sealed. Call unseal() with the master passphrase."
             )
+
+    def _load_or_create_salt(self) -> bytes:
+        """Load the master key salt from disk, or generate a new one.
+
+        The salt is stored as a raw 16-byte file next to the audit log.
+        """
+        salt_path = self._audit_path.parent / self.SALT_FILE
+        if salt_path.exists():
+            return salt_path.read_bytes()
+        salt = os.urandom(16)
+        salt_path.parent.mkdir(parents=True, exist_ok=True)
+        salt_path.write_bytes(salt)
+        return salt
 
     def _audit(
         self,

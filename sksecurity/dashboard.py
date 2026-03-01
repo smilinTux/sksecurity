@@ -11,13 +11,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import psutil
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
 
 from .database import SecurityDatabase, SecurityEvent
 from .intelligence import ThreatIntelligence
+from .kms import KMS, FileKeyStore, KeyType
 from .monitor import RuntimeMonitor
 from .quarantine import QuarantineManager
+from .scanner import SecurityScanner
 
 
 class DashboardServer:
@@ -31,7 +31,18 @@ class DashboardServer:
         quarantine: Optional[QuarantineManager] = None,
         monitor: Optional[RuntimeMonitor] = None,
         intel: Optional[ThreatIntelligence] = None,
+        kms: Optional[KMS] = None,
+        scanner: Optional[SecurityScanner] = None,
     ):
+        try:
+            from flask import Flask
+            from flask_cors import CORS
+        except ImportError as exc:
+            raise ImportError(
+                "Flask is required for the web dashboard. "
+                "Install it with: pip install sksecurity[web]"
+            ) from exc
+
         self.port = port
         self.host = host
         self.app = Flask(__name__)
@@ -42,6 +53,8 @@ class DashboardServer:
         self.quarantine = quarantine or QuarantineManager()
         self.monitor = monitor or RuntimeMonitor(check_interval=30)
         self.intel = intel or ThreatIntelligence()
+        self.kms = kms
+        self.scanner = scanner
 
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -52,6 +65,8 @@ class DashboardServer:
     # ------------------------------------------------------------------
 
     def _setup_routes(self):
+        from flask import jsonify, request, send_from_directory
+
         # ---- Static assets ----
         assets_dir = str(Path(__file__).parent.parent / "assets")
 
@@ -159,6 +174,80 @@ class DashboardServer:
         @self.app.route("/api/threats")
         def threats_status():
             return jsonify(self.intel.get_status())
+
+        # ---- KMS ----
+        @self.app.route("/api/kms/status")
+        def kms_status():
+            if not self.kms:
+                return jsonify({"error": "KMS not configured"}), 503
+            return jsonify(self.kms.status())
+
+        @self.app.route("/api/kms/keys")
+        def kms_list_keys():
+            if not self.kms:
+                return jsonify({"error": "KMS not configured"}), 503
+            key_type_str = request.args.get("type")
+            team_id = request.args.get("team_id")
+            kt = None
+            if key_type_str:
+                try:
+                    kt = KeyType(key_type_str)
+                except ValueError:
+                    return jsonify({"error": f"Invalid key type: {key_type_str}"}), 400
+            keys = self.kms.list_keys(key_type=kt, team_id=team_id)
+            return jsonify(
+                {
+                    "keys": [k.model_dump(mode="json") for k in keys],
+                    "count": len(keys),
+                }
+            )
+
+        @self.app.route("/api/kms/rotate", methods=["POST"])
+        def kms_rotate():
+            if not self.kms:
+                return jsonify({"error": "KMS not configured"}), 503
+            if not request.is_json or "key_id" not in request.json:
+                return jsonify({"error": "key_id required"}), 400
+            new_key = self.kms.rotate_key(request.json["key_id"])
+            if not new_key:
+                return jsonify({"error": "Key not found"}), 404
+            return jsonify(
+                {
+                    "rotated": True,
+                    "old_key_id": request.json["key_id"],
+                    "new_key_id": new_key.key_id,
+                }
+            )
+
+        # ---- Security scan ----
+        @self.app.route("/api/scan", methods=["POST"])
+        def scan_path():
+            if not self.scanner:
+                return jsonify({"error": "Scanner not configured"}), 503
+            if not request.is_json or "path" not in request.json:
+                return jsonify({"error": "path required"}), 400
+            target = request.json["path"]
+            if not Path(target).exists():
+                return jsonify({"error": f"Path not found: {target}"}), 404
+            result = self.scanner.scan(target)
+            # Log scan as security event
+            self.db.log_event(SecurityEvent(
+                event_type="scan",
+                severity="info" if result.risk_score < 50 else "high",
+                source="api",
+                message=f"Scan of {target}: risk={result.risk_score}",
+                details={"target": target, "risk_score": result.risk_score,
+                         "threat_count": result.threat_count},
+            ))
+            return jsonify(result.to_dict())
+
+        # ---- Quarantine restore ----
+        @self.app.route("/api/quarantine/restore", methods=["POST"])
+        def quarantine_restore():
+            if not request.is_json or "quarantine_path" not in request.json:
+                return jsonify({"error": "quarantine_path required"}), 400
+            ok = self.quarantine.restore(request.json["quarantine_path"])
+            return jsonify({"restored": ok})
 
     # ------------------------------------------------------------------
     # Helpers
