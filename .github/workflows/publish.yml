@@ -40,14 +40,19 @@ jobs:
 
   publish-npm:
     needs: test
-    if: ${{ always() && hashFiles('package.json') != '' }}
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check for package.json
+        id: check
+        run: test -f package.json && echo "has_pkg=true" >> "$GITHUB_OUTPUT" || echo "has_pkg=false" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
       - run: npm publish --access public
+        if: steps.check.outputs.has_pkg == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
