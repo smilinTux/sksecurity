@@ -1,0 +1,10 @@
+{
+  "id": "sksecurity",
+  "name": "SKSecurity",
+  "description": "Security operations — vulnerability scanning, secret detection, prompt screening, auditing, and monitoring via the sksecurity CLI.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
