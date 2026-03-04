@@ -86,8 +86,10 @@ DEFAULT_CONFIG = {
         },
         {
             'name': 'Community',
-            'url': 'https://api.sksecurity.com/threats',
-            'enabled': True, 
+            # Community threat-intel endpoint — update URL once a domain is
+            # configured. See https://github.com/smilinTux/SKSecurity for status.
+            'url': 'https://github.com/smilinTux/SKSecurity',
+            'enabled': False,
             'priority': 2
         }
     ],

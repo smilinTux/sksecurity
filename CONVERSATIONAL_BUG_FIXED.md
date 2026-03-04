@@ -114,7 +114,7 @@ AI: "📊 Protection Level: ENTERPRISE (Active)
 - **Raw installer**: `https://raw.githubusercontent.com/smilinTux/SKSecurity/main/install.sh`
 - **Documentation**: GitHub repository links
 - **Reports**: GitHub docs references  
-- **No DNS dependency**: Works immediately without sksecurity.io
+- **No DNS dependency**: Works immediately via GitHub URLs
 
 ---
 

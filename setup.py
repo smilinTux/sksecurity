@@ -48,8 +48,8 @@ setup(
     author_email="team@smilintux.org",
     url="https://github.com/smilinTux/SKSecurity",
     project_urls={
-        "Homepage": "https://sksecurity.com",
-        "Documentation": "https://docs.sksecurity.com",
+        "Homepage": "https://github.com/smilinTux/SKSecurity",
+        "Documentation": "https://github.com/smilinTux/SKSecurity/tree/main/docs",
         "Repository": "https://github.com/smilinTux/SKSecurity",
         "Bug Tracker": "https://github.com/smilinTux/SKSecurity/issues",
         "Community": "https://discord.gg/sksecurity",

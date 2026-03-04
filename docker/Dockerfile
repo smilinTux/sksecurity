@@ -6,6 +6,7 @@ LABEL maintainer="team@smilintux.org"
 LABEL description="Enterprise-grade security for AI agent ecosystems"
 LABEL version="1.0.0"
 LABEL org.opencontainers.image.source="https://github.com/smilinTux/SKSecurity"
+# NOTE: docs.sksecurity.com is not registered/active. See sksecurity/DNS_STATUS.md.
 LABEL org.opencontainers.image.documentation="https://docs.sksecurity.com"
 LABEL org.opencontainers.image.vendor="smilinTux"
 

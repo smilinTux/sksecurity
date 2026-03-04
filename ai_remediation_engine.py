@@ -1,7 +1,37 @@
 #!/usr/bin/env python3
 """
 SKSecurity Enterprise - AI-Powered Code Remediation Engine
-Automatically fixes security vulnerabilities using AI code generation
+Automatically fixes security vulnerabilities using AI code generation.
+
+Limitations
+-----------
+- **Regex-based detection only.** The engine uses static regex patterns to
+  identify vulnerabilities.  Complex or obfuscated code patterns will be
+  missed.  A full AST-based or taint-analysis approach is planned but not
+  yet implemented.
+- **Fallback TODO comments.**  When a vulnerability matches the detection
+  regex but the fix regex cannot transform the code (e.g. non-%s SQL
+  formatting, or unknown vulnerability types handled by ``_generic_fix``),
+  the engine appends a ``# TODO`` comment rather than producing a real
+  patch.  These should be treated as *flags for manual review*, not fixes.
+- **No LLM integration yet.**  Despite the "AI-powered" name, remediation
+  is currently template-driven string replacement.  Future work will wire
+  this to an LLM backend (e.g. Claude) for context-aware patch generation.
+- **Single-line scope.**  Fixes operate on individual lines.  Multi-line
+  vulnerability patterns (e.g. multi-statement SQL construction) are not
+  handled.
+- **No test generation.**  Applied fixes are not accompanied by regression
+  tests.  Planned: auto-generate pytest cases that prove the vulnerability
+  is mitigated after patching.
+
+Planned Improvements
+--------------------
+1. AST-based detection using ``ast`` module for Python files.
+2. LLM-backed ``generate_fix()`` with context window of surrounding code.
+3. Multi-language support (JavaScript, Go, Rust).
+4. Confidence scoring per fix so callers can auto-apply high-confidence
+   patches and flag low-confidence ones for review.
+5. SARIF output format for integration with GitHub Code Scanning.
 """
 
 import re
@@ -128,7 +158,12 @@ class AIRemediationEngine:
             }
     
     def _fix_sql_injection(self, vuln):
-        """Fix SQL injection with parameterized queries"""
+        """Fix SQL injection with parameterized queries.
+
+        Note: Falls back to appending a TODO comment when the line does not
+        match the expected ``execute("...%s..." % (...))`` pattern.  This is
+        a known limitation -- see module docstring for planned improvements.
+        """
         old_line = vuln['line_content']
         
         # Generate parameterized query replacement
@@ -206,7 +241,13 @@ class AIRemediationEngine:
         }
     
     def _generic_fix(self, vuln):
-        """Generic fix template for other vulnerabilities"""
+        """Generic fix template for other vulnerabilities.
+
+        Warning: This is a placeholder that only appends a TODO comment.
+        It does NOT remediate the vulnerability.  Callers should treat its
+        output as a flag for manual review.  See module docstring for the
+        roadmap toward LLM-backed context-aware patching.
+        """
         return {
             'type': vuln['type'],
             'old_code': vuln['line_content'],

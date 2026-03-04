@@ -1,0 +1,26 @@
+name: sksecurity
+version: "0.1.0"
+description: >
+  Sovereign security scanning and AI-assisted remediation. Vulnerability
+  detection, dependency auditing, and conversational security analysis
+  for sovereign agent deployments.
+
+author:
+  name: smilinTux.org
+  email: hello@smilintux.org
+
+tags: [security, scanning, vulnerabilities, audit, remediation, ai]
+category: security
+
+tools:
+  - name: security_scan
+    description: Run a security scan on a codebase or configuration
+    entrypoint: sksecurity.skill:scan
+
+  - name: security_audit
+    description: Audit dependencies for known vulnerabilities
+    entrypoint: sksecurity.skill:audit
+
+  - name: security_remediate
+    description: Get AI-assisted remediation for security issues
+    entrypoint: sksecurity.skill:remediate

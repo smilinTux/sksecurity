@@ -251,8 +251,10 @@ threat_sources:
     enabled: true
     priority: 1
   - name: "Community"
-    url: "https://api.sksecurity.com/threats"
-    enabled: true
+    # Community threat-intel endpoint — update URL once a domain is configured.
+    # See https://github.com/smilinTux/SKSecurity for status.
+    url: "https://github.com/smilinTux/SKSecurity"
+    enabled: false
     priority: 2
 
 monitoring:

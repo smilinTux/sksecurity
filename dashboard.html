@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SKSecurity — Real-Time Dashboard</title>
+  <style>
+    :root {
+      --bg:        #0a0e1a;
+      --surface:   #111827;
+      --surface2:  #1a2235;
+      --border:    #1f2937;
+      --border2:   #2d3f55;
+      --text:      #f1f5f9;
+      --text2:     #94a3b8;
+      --text3:     #64748b;
+      --critical:  #ef4444;
+      --high:      #f97316;
+      --medium:    #eab308;
+      --low:       #6b7280;
+      --good:      #22c55e;
+      --info:      #3b82f6;
+      --purple:    #8b5cf6;
+      --critical-bg: rgba(239,68,68,0.12);
+      --high-bg:     rgba(249,115,22,0.12);
+      --medium-bg:   rgba(234,179,8,0.12);
+      --low-bg:      rgba(107,114,128,0.10);
+      --good-bg:     rgba(34,197,94,0.12);
+      --info-bg:     rgba(59,130,246,0.12);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── TOPBAR ─────────────────────────────────────────── */
+    #topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    #logo {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    #logo span { color: var(--info); }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 6px var(--good);
+      animation: pulse 2s infinite;
+      flex-shrink: 0;
+    }
+    .live-dot.offline { background: var(--low); box-shadow: none; animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .tb-divider { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; }
+
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+    .stat-pill .label { color: var(--text3); }
+    .stat-pill .value { font-weight: 600; }
+    .stat-pill .value.critical { color: var(--critical); }
+    .stat-pill .value.good { color: var(--good); }
+    .stat-pill .value.warn { color: var(--medium); }
+
+    #threat-level-badge {
+      padding: 3px 10px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    #conn-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text3);
+    }
+    #clock {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: var(--text2);
+      letter-spacing: 1px;
+    }
+
+    /* ── MAIN GRID ──────────────────────────────────────── */
+    #main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+      padding: 12px;
+      min-height: 0;
+    }
+
+    /* ── PANEL ──────────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: var(--text2);
+      flex-shrink: 0;
+    }
+    .panel-head .icon { font-size: 14px; }
+    .panel-head .badge {
+      margin-left: auto;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 10px;
+      color: var(--text3);
+    }
+    .panel-head .badge.red { background: var(--critical-bg); border-color: var(--critical); color: var(--critical); }
+    .panel-head .badge.orange { background: var(--high-bg); border-color: var(--high); color: var(--high); }
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .panel-body::-webkit-scrollbar { width: 4px; }
+    .panel-body::-webkit-scrollbar-track { background: transparent; }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ── THREAT ITEM ────────────────────────────────────── */
+    .threat-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      margin-bottom: 6px;
+      transition: background 0.15s;
+      cursor: default;
+    }
+    .threat-item:hover { border-color: var(--border2); }
+    .threat-item.critical { background: var(--critical-bg); border-color: rgba(239,68,68,0.25); }
+    .threat-item.high     { background: var(--high-bg);     border-color: rgba(249,115,22,0.25); }
+    .threat-item.medium   { background: var(--medium-bg);   border-color: rgba(234,179,8,0.25); }
+    .threat-item.low      { background: var(--low-bg);      border-color: rgba(107,114,128,0.2); }
+
+    .sev-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .sev-dot.critical { background: var(--critical); box-shadow: 0 0 5px var(--critical); }
+    .sev-dot.high     { background: var(--high);     box-shadow: 0 0 5px var(--high); }
+    .sev-dot.medium   { background: var(--medium); }
+    .sev-dot.low      { background: var(--low); }
+
+    .threat-info { flex: 1; min-width: 0; }
+    .threat-type {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .threat-meta {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 2px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .threat-meta .file {
+      font-family: 'Courier New', monospace;
+      color: var(--text2);
+      font-size: 10px;
+      background: var(--surface2);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    .sev-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .sev-badge.critical { background: var(--critical-bg); color: var(--critical); }
+    .sev-badge.high     { background: var(--high-bg);     color: var(--high); }
+    .sev-badge.medium   { background: var(--medium-bg);   color: var(--medium); }
+    .sev-badge.low      { background: var(--low-bg);      color: var(--low); }
+
+    /* ── QUARANTINE TABLE ───────────────────────────────── */
+    .q-table { width: 100%; border-collapse: collapse; }
+    .q-table th {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text3);
+      padding: 4px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .q-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(31,41,55,0.5);
+      vertical-align: middle;
+    }
+    .q-table tr:last-child td { border-bottom: none; }
+    .q-table tr:hover td { background: var(--surface2); }
+    .q-file {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: var(--text);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .q-type { font-size: 10px; color: var(--text3); }
+    .q-time { font-size: 10px; color: var(--text3); white-space: nowrap; }
+    .btn-sm {
+      padding: 3px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn-sm:hover { opacity: 0.8; }
+    .btn-restore { background: var(--info-bg); color: var(--info); border: 1px solid rgba(59,130,246,0.3); }
+    .btn-delete  { background: var(--critical-bg); color: var(--critical); border: 1px solid rgba(239,68,68,0.3); }
+
+    /* ── COMPLIANCE ─────────────────────────────────────── */
+    #panel-compliance { grid-column: 2; grid-row: 1 / 3; }
+
+    .compliance-framework {
+      margin-bottom: 14px;
+    }
+    .cf-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .cf-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cf-score {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .cf-bar-bg {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .cf-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+    .cf-checks {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .cf-check {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid;
+    }
+    .cf-check.pass { background: var(--good-bg); border-color: rgba(34,197,94,0.25); color: var(--good); }
+    .cf-check.fail { background: var(--critical-bg); border-color: rgba(239,68,68,0.25); color: var(--critical); }
+    .cf-check.warn { background: var(--medium-bg); border-color: rgba(234,179,8,0.25); color: var(--medium); }
+
+    .compliance-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+    /* ── BEHAVIORAL ─────────────────────────────────────── */
+    #panel-behavioral { grid-column: 2; }
+
+    .behav-item {
+      display: flex;
+      gap: 10px;
+      padding: 7px 8px;
+      border-radius: 5px;
+      margin-bottom: 5px;
+      border: 1px solid var(--border);
+      align-items: flex-start;
+    }
+    .behav-icon { font-size: 14px; flex-shrink: 0; }
+    .behav-info { flex: 1; min-width: 0; }
+    .behav-title { font-size: 12px; font-weight: 500; color: var(--text); }
+    .behav-detail { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .behav-time { font-size: 10px; color: var(--text3); flex-shrink: 0; white-space: nowrap; }
+
+    /* ── AUDIT TRAIL ────────────────────────────────────── */
+    #panel-audit { grid-column: 1 / 2; }
+
+    .audit-entry {
+      display: flex;
+      gap: 10px;
+      padding: 5px 8px;
+      border-radius: 4px;
+      margin-bottom: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      border-left: 2px solid transparent;
+      transition: background 0.1s;
+    }
+    .audit-entry:hover { background: var(--surface2); }
+    .audit-entry.critical { border-left-color: var(--critical); }
+    .audit-entry.high     { border-left-color: var(--high); }
+    .audit-entry.medium   { border-left-color: var(--medium); }
+    .audit-entry.info     { border-left-color: var(--info); }
+    .audit-entry.low      { border-left-color: var(--low); }
+
+    .audit-time { color: var(--text3); flex-shrink: 0; }
+    .audit-agent {
+      color: var(--info);
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .audit-msg { color: var(--text2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── EMPTY STATE ────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      color: var(--text3);
+      padding: 30px 20px;
+      font-size: 12px;
+    }
+    .empty-state .icon { font-size: 28px; margin-bottom: 8px; }
+
+    /* ── FILTER ROW ─────────────────────────────────────── */
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .filter-btn {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      transition: all 0.15s;
+    }
+    .filter-btn.active { background: var(--info-bg); border-color: var(--info); color: var(--info); }
+    .filter-btn.active.critical { background: var(--critical-bg); border-color: var(--critical); color: var(--critical); }
+    .filter-btn.active.high { background: var(--high-bg); border-color: var(--high); color: var(--high); }
+    .filter-btn.active.medium { background: var(--medium-bg); border-color: var(--medium); color: var(--medium); }
+
+    /* ── SPARKLINE ──────────────────────────────────────── */
+    #sparkline-canvas {
+      width: 100%;
+      height: 32px;
+      display: block;
+    }
+
+    /* ── SCROLLABLE THREAT PANEL ───────────────────────── */
+    #panel-threats {
+      grid-column: 1;
+      max-height: 320px;
+    }
+
+    /* ── QUARANTINE PANEL ───────────────────────────────── */
+    #panel-quarantine {
+      grid-column: 1;
+      max-height: 260px;
+    }
+
+    /* ── AUDIT PANEL ────────────────────────────────────── */
+    #panel-audit {
+      grid-column: 1;
+    }
+
+    /* ── TOAST ──────────────────────────────────────────── */
+    #toast-container {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .toast {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      color: var(--text2);
+      animation: toastIn 0.2s ease, toastOut 0.3s ease 2.7s forwards;
+      max-width: 300px;
+    }
+    @keyframes toastIn  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes toastOut { from{opacity:1} to{opacity:0} }
+
+    /* ── RESPONSIVE ─────────────────────────────────────── */
+    @media (max-width: 900px) {
+      #main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+      #panel-compliance { grid-column: 1; grid-row: auto; }
+      #panel-behavioral { grid-column: 1; }
+      #panel-audit      { grid-column: 1; }
+      #panel-threats    { max-height: none; }
+      #panel-quarantine { max-height: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── TOPBAR ───────────────────────────────────────────── -->
+<div id="topbar">
+  <div id="logo">🛡️ SK<span>Security</span></div>
+  <div class="live-dot" id="live-dot"></div>
+  <span id="live-label" style="font-size:11px;color:var(--text3)">LIVE</span>
+
+  <div class="tb-divider"></div>
+
+  <div class="stat-pill">
+    <span class="label">Threat Level</span>
+    <span id="threat-level-badge" class="sev-badge">—</span>
+  </div>
+
+  <div class="stat-pill">
+    <span class="label">Active Threats</span>
+    <span class="value" id="stat-threats">0</span>
+  </div>
+
+  <div class="stat-pill">
+    <span class="label">Quarantine</span>
+    <span class="value" id="stat-quarantine">0</span>
+  </div>
+
+  <div class="stat-pill">
+    <span class="label">Compliance</span>
+    <span class="value good" id="stat-compliance">—</span>
+  </div>
+
+  <div class="stat-pill">
+    <span class="label">Agents Online</span>
+    <span class="value good" id="stat-agents">0</span>
+  </div>
+
+  <div class="stat-pill">
+    <span class="label">Events/min</span>
+    <span class="value" id="stat-eps">0</span>
+  </div>
+
+  <div id="conn-status">
+    <div class="live-dot offline" id="ws-dot"></div>
+    <span id="ws-label">Simulated</span>
+  </div>
+
+  <div class="tb-divider"></div>
+  <div id="clock">--:--:--</div>
+</div>
+
+<!-- ── MAIN GRID ─────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- ACTIVE THREATS -->
+  <div class="panel" id="panel-threats">
+    <div class="panel-head">
+      <span class="icon">🔴</span> ACTIVE THREATS
+      <div class="badge red" id="badge-threats">0</div>
+    </div>
+    <div class="filter-row" id="threat-filters">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn active critical" data-filter="critical">Critical</button>
+      <button class="filter-btn active high" data-filter="high">High</button>
+      <button class="filter-btn active medium" data-filter="medium">Medium</button>
+      <button class="filter-btn" data-filter="low">Low</button>
+    </div>
+    <div class="panel-body" id="threats-body">
+      <div class="empty-state"><div class="icon">✅</div>No active threats detected</div>
+    </div>
+  </div>
+
+  <!-- COMPLIANCE STATUS -->
+  <div class="panel" id="panel-compliance">
+    <div class="panel-head">
+      <span class="icon">📋</span> COMPLIANCE STATUS
+      <div class="badge" id="badge-compliance">—</div>
+    </div>
+    <div class="panel-body" id="compliance-body">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- QUARANTINE QUEUE -->
+  <div class="panel" id="panel-quarantine">
+    <div class="panel-head">
+      <span class="icon">🔒</span> QUARANTINE QUEUE
+      <div class="badge orange" id="badge-quarantine">0</div>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="q-table" id="q-table">
+        <thead>
+          <tr>
+            <th>File / Path</th>
+            <th>Threat Type</th>
+            <th>Sev</th>
+            <th>Quarantined</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="q-body">
+          <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Queue empty</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BEHAVIORAL ANALYSIS -->
+  <div class="panel" id="panel-behavioral">
+    <div class="panel-head">
+      <span class="icon">📊</span> BEHAVIORAL ANALYSIS
+      <div class="badge" id="badge-behavioral">0 anomalies</div>
+    </div>
+    <canvas id="sparkline-canvas"></canvas>
+    <div class="panel-body" id="behav-body">
+    </div>
+  </div>
+
+  <!-- AGENT AUDIT TRAIL -->
+  <div class="panel" id="panel-audit">
+    <div class="panel-head">
+      <span class="icon">📜</span> AGENT AUDIT TRAIL
+      <div class="badge" id="badge-audit">0 events</div>
+    </div>
+    <div class="panel-body" id="audit-body" style="max-height:200px">
+    </div>
+  </div>
+
+</div><!-- /#main -->
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────
+const WS_URL = 'ws://localhost:8080/pubsub/ws';
+const TOPICS  = ['sksecurity.threats', 'sksecurity.quarantine', 'sksecurity.compliance',
+                  'sksecurity.behavioral', 'sksecurity.audit'];
+
+// ── STATE ──────────────────────────────────────────────────
+const state = {
+  threats: [],
+  quarantine: [],
+  behavioral: [],
+  audit: [],
+  compliance: {},
+  agentsOnline: 0,
+  eventsLastMin: 0,
+  filter: { critical: true, high: true, medium: true, low: false, all: true },
+  ws: null,
+  wsConnected: false,
+  simInterval: null,
+  eventCount: 0,
+  minuteEventCount: 0,
+};
+
+// ── SEVERITY HELPERS ───────────────────────────────────────
+const SEV_ORDER = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+function sevClass(s) {
+  s = (s || '').toLowerCase();
+  if (s === 'critical') return 'critical';
+  if (s === 'high')     return 'high';
+  if (s === 'medium')   return 'medium';
+  return 'low';
+}
+function overallThreatLevel(threats) {
+  if (threats.some(t => t.severity === 'critical')) return 'critical';
+  if (threats.some(t => t.severity === 'high'))     return 'high';
+  if (threats.some(t => t.severity === 'medium'))   return 'medium';
+  if (threats.length > 0)                           return 'low';
+  return 'clear';
+}
+
+// ── TIME HELPERS ───────────────────────────────────────────
+function now() { return new Date(); }
+function fmt(d) {
+  const dd = typeof d === 'string' ? new Date(d) : d;
+  return dd.toLocaleTimeString('en-US', { hour12: false });
+}
+function reltime(d) {
+  const diff = (Date.now() - new Date(d).getTime()) / 1000;
+  if (diff < 60)   return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  return `${Math.floor(diff/3600)}h ago`;
+}
+
+// ── DEMO DATA SEEDS ────────────────────────────────────────
+const THREAT_TYPES = [
+  'code_injection','command_injection','hardcoded_secrets','sql_injection',
+  'path_traversal','remote_code_execution','deserialization','backdoor_pattern',
+  'privilege_escalation','xss_potential','unsafe_pickle','weak_crypto'
+];
+const FILE_PATHS = [
+  '/workspace/app.py', '/workspace/utils/db.py', '/workspace/api/auth.py',
+  '/workspace/scripts/deploy.sh', '/tmp/upload_0x4a.py', '/workspace/models/user.py',
+  '/workspace/config/settings.py', '/opt/agent/runner.js', '/tmp/payload.py',
+  '~/.skcapstone/skill.py', '/workspace/routes/admin.py', '/home/user/.bashrc'
+];
+const AGENT_NAMES = ['opus','lumina','jarvis','ava','sonnet','grok'];
+const AUDIT_ACTIONS = [
+  'Scanned {f} → {n} threats found',
+  'Quarantined {f} (threat: {t})',
+  'Compliance check completed: SOC2 {s}%',
+  'Threat intelligence updated: {n} new indicators',
+  'Behavioral anomaly detected: {desc}',
+  'Secret guard triggered on {f}',
+  'Agent {a} joined sovereign mesh',
+  'Memory sealed: {n} records verified',
+  'Config change detected in {f}',
+  'NIST control {c} — status updated',
+];
+const BEHAV_TYPES = [
+  { icon: '⚡', title: 'CPU Spike', desc: 'Process exceeded 90% CPU for 30s' },
+  { icon: '🌐', title: 'Network Anomaly', desc: 'Outbound connection to unknown IP' },
+  { icon: '📁', title: 'File System Change', desc: 'Unexpected write to /etc/passwd' },
+  { icon: '🔑', title: 'Auth Failure Burst', desc: '14 failed login attempts in 60s' },
+  { icon: '🔄', title: 'New Process Spawned', desc: 'Unexpected child process from python3' },
+  { icon: '💾', title: 'Memory Pressure', desc: 'Virtual memory usage at 94%' },
+  { icon: '🕵️', title: 'Port Scan Detected', desc: 'Sequential port probing on 127.0.0.1' },
+  { icon: '📜', title: 'Script Injection', desc: 'eval() call in incoming request body' },
+];
+
+function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function makeTheat() {
+  const type = rand(THREAT_TYPES);
+  const sev  = rand(['critical','critical','high','high','medium','medium','low']);
+  return {
+    id: uid(), type, severity: sev,
+    file: rand(FILE_PATHS),
+    source: rand(['built-in scanner','secret_guard','behavioral','intel-feed']),
+    ts: new Date(Date.now() - randInt(0, 3600000)).toISOString(),
+    confidence: (Math.random() * 0.3 + 0.7).toFixed(2),
+  };
+}
+
+function makeQuarantine() {
+  const type = rand(THREAT_TYPES);
+  const sev  = rand(['critical','high','medium']);
+  const file = rand(FILE_PATHS);
+  return {
+    id: uid(), file,
+    original: file,
+    quarantine_path: `~/.sksecurity/quarantine/${Date.now()}_${file.split('/').pop()}`,
+    threat_type: type, severity: sev,
+    ts: new Date(Date.now() - randInt(0, 7200000)).toISOString(),
+  };
+}
+
+function makeBehav() {
+  const b = rand(BEHAV_TYPES);
+  return { ...b, id: uid(), ts: new Date(Date.now() - randInt(0, 1800000)).toISOString() };
+}
+
+function makeAudit(severity) {
+  const tmpl = rand(AUDIT_ACTIONS);
+  const msg = tmpl
+    .replace('{f}', rand(FILE_PATHS))
+    .replace('{n}', randInt(1, 12))
+    .replace('{t}', rand(THREAT_TYPES))
+    .replace('{s}', randInt(60, 98))
+    .replace('{a}', rand(AGENT_NAMES))
+    .replace('{desc}', rand(BEHAV_TYPES).title.toLowerCase())
+    .replace('{c}', `AC-${randInt(1,20)}.${randInt(1,5)}`);
+  return {
+    id: uid(),
+    ts: new Date(Date.now() - randInt(0, 600000)).toISOString(),
+    agent: rand(AGENT_NAMES),
+    msg,
+    severity: severity || rand(['info','info','low','medium','high','critical']),
+  };
+}
+
+function makeCompliance() {
+  function checks(names, passRate) {
+    return names.map(n => ({
+      name: n,
+      status: Math.random() < passRate ? 'pass' : (Math.random() < 0.5 ? 'warn' : 'fail')
+    }));
+  }
+  return {
+    soc2: {
+      name: 'SOC 2 Type II',
+      score: randInt(70, 95),
+      checks: checks(['CC1','CC2','CC3','CC4','CC5','CC6','CC7','CC8','CC9','A1','CA1','PI1'], 0.78),
+      color: '#3b82f6'
+    },
+    nist: {
+      name: 'NIST CSF',
+      score: randInt(60, 90),
+      checks: checks(['ID.AM','ID.GV','PR.AC','PR.AT','PR.DS','PR.IP','DE.AE','DE.CM','RS.RP','RC.RP'], 0.72),
+      color: '#8b5cf6'
+    },
+    pci: {
+      name: 'PCI DSS v4',
+      score: randInt(75, 97),
+      checks: checks(['Req1','Req2','Req3','Req4','Req5','Req6','Req7','Req8','Req9','Req10','Req11','Req12'], 0.83),
+      color: '#22c55e'
+    },
+  };
+}
+
+// ── INITIAL DATA ───────────────────────────────────────────
+function seedData() {
+  state.threats    = Array.from({length: randInt(4, 10)}, makeTheat)
+    .sort((a,b) => SEV_ORDER[b.severity] - SEV_ORDER[a.severity]);
+  state.quarantine = Array.from({length: randInt(3, 7)}, makeQuarantine);
+  state.behavioral = Array.from({length: randInt(4, 8)}, makeBehav)
+    .sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  state.audit      = Array.from({length: randInt(15, 30)}, () => makeAudit())
+    .sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  state.compliance = makeCompliance();
+  state.agentsOnline = randInt(3, AGENT_NAMES.length);
+}
+
+// ── RENDER ─────────────────────────────────────────────────
+
+function renderThreats() {
+  const body = document.getElementById('threats-body');
+  const filtered = state.threats.filter(t => {
+    const sc = sevClass(t.severity);
+    return state.filter.all || state.filter[sc];
+  });
+
+  document.getElementById('badge-threats').textContent = state.threats.length;
+  document.getElementById('stat-threats').textContent  = state.threats.length;
+
+  if (!filtered.length) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">✅</div>No active threats detected</div>';
+    return;
+  }
+
+  body.innerHTML = filtered.map(t => {
+    const sc = sevClass(t.severity);
+    return `
+      <div class="threat-item ${sc}" data-id="${t.id}">
+        <div class="sev-dot ${sc}"></div>
+        <div class="threat-info">
+          <div class="threat-type">${t.type.replace(/_/g,' ')}</div>
+          <div class="threat-meta">
+            <span class="file">${t.file.split('/').pop()}</span>
+            <span>${t.source}</span>
+            <span>${reltime(t.ts)}</span>
+            <span style="color:var(--text3)">conf: ${t.confidence}</span>
+          </div>
+        </div>
+        <span class="sev-badge ${sc}">${t.severity}</span>
+      </div>`;
+  }).join('');
+
+  // Threat level badge
+  const level = overallThreatLevel(state.threats);
+  const badge = document.getElementById('threat-level-badge');
+  badge.textContent = level.toUpperCase();
+  badge.className   = `sev-badge ${level === 'clear' ? 'low' : level}`;
+}
+
+function renderQuarantine() {
+  const body  = document.getElementById('q-body');
+  const count = state.quarantine.length;
+  document.getElementById('badge-quarantine').textContent = count;
+  document.getElementById('stat-quarantine').textContent  = count;
+
+  if (!count) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Queue empty</td></tr>';
+    return;
+  }
+
+  body.innerHTML = state.quarantine.map(q => {
+    const sc = sevClass(q.severity);
+    return `
+      <tr data-id="${q.id}">
+        <td><div class="q-file" title="${q.original}">${q.file.split('/').pop()}</div>
+            <div class="q-type">${q.original.replace(/\/home\/[^/]+/, '~')}</div></td>
+        <td><div class="q-type">${(q.threat_type||'').replace(/_/g,' ')}</div></td>
+        <td><span class="sev-badge ${sc}">${q.severity}</span></td>
+        <td><div class="q-time">${reltime(q.ts)}</div></td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-restore" onclick="restoreItem('${q.id}')">Restore</button>
+          <button class="btn-sm btn-delete"  onclick="deleteItem('${q.id}')">Delete</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function renderCompliance() {
+  const body = document.getElementById('compliance-body');
+  const fw = state.compliance;
+  if (!fw.soc2) return;
+
+  const scores = [fw.soc2.score, fw.nist.score, fw.pci.score];
+  const avg    = Math.round(scores.reduce((a,b)=>a+b,0) / scores.length);
+  document.getElementById('badge-compliance').textContent = `${avg}% avg`;
+  document.getElementById('stat-compliance').textContent  = `${avg}%`;
+  const statEl = document.getElementById('stat-compliance');
+  statEl.className = `value ${avg >= 80 ? 'good' : avg >= 65 ? 'warn' : 'critical'}`;
+
+  function barColor(score) {
+    if (score >= 80) return 'var(--good)';
+    if (score >= 65) return 'var(--medium)';
+    return 'var(--critical)';
+  }
+
+  body.innerHTML = [fw.soc2, fw.nist, fw.pci].map(f => {
+    const passCount = f.checks.filter(c => c.status === 'pass').length;
+    const warnCount = f.checks.filter(c => c.status === 'warn').length;
+    const failCount = f.checks.filter(c => c.status === 'fail').length;
+    const color = barColor(f.score);
+
+    return `
+      <div class="compliance-framework">
+        <div class="cf-header">
+          <div class="cf-name">
+            <span style="width:8px;height:8px;border-radius:50%;background:${f.color};display:inline-block;flex-shrink:0"></span>
+            ${f.name}
+          </div>
+          <div class="cf-score" style="color:${color}">${f.score}%</div>
+        </div>
+        <div class="cf-bar-bg">
+          <div class="cf-bar" style="width:${f.score}%;background:${color}"></div>
+        </div>
+        <div class="cf-checks">
+          ${f.checks.map(c =>
+            `<span class="cf-check ${c.status}" title="${c.name}: ${c.status}">${c.name}</span>`
+          ).join('')}
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px">
+          ✅ ${passCount} pass &nbsp; ⚠️ ${warnCount} warn &nbsp; ❌ ${failCount} fail
+        </div>
+      </div>
+      ${f !== fw.pci ? '<hr class="compliance-divider">' : ''}
+    `;
+  }).join('');
+}
+
+function renderBehavioral() {
+  const body = document.getElementById('behav-body');
+  const count = state.behavioral.length;
+  document.getElementById('badge-behavioral').textContent = `${count} anomalies`;
+
+  if (!count) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">🟢</div>No anomalies detected</div>';
+    return;
+  }
+
+  body.innerHTML = state.behavioral.map(b => `
+    <div class="behav-item">
+      <div class="behav-icon">${b.icon}</div>
+      <div class="behav-info">
+        <div class="behav-title">${b.title}</div>
+        <div class="behav-detail">${b.desc}</div>
+      </div>
+      <div class="behav-time">${reltime(b.ts)}</div>
+    </div>
+  `).join('');
+}
+
+function renderAudit() {
+  const body  = document.getElementById('audit-body');
+  const count = state.audit.length;
+  document.getElementById('badge-audit').textContent = `${count} events`;
+
+  body.innerHTML = state.audit.slice(0, 60).map(e => `
+    <div class="audit-entry ${sevClass(e.severity)}">
+      <span class="audit-time">${fmt(e.ts)}</span>
+      <span class="audit-agent">[${e.agent}]</span>
+      <span class="audit-msg">${e.msg}</span>
+    </div>
+  `).join('');
+}
+
+function renderSparkline() {
+  const canvas = document.getElementById('sparkline-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.offsetWidth, H = 32;
+  canvas.width = W; canvas.height = H;
+
+  const points = Array.from({length: 40}, () => Math.random());
+  const max    = Math.max(...points);
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(59,130,246,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  points.forEach((v, i) => {
+    const x = (i / (points.length - 1)) * W;
+    const y = H - (v / max) * (H - 4) - 2;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // fill
+  ctx.lineTo(W, H); ctx.lineTo(0, H);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(59,130,246,0.15)');
+  grad.addColorStop(1, 'rgba(59,130,246,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+function renderAll() {
+  renderThreats();
+  renderQuarantine();
+  renderCompliance();
+  renderBehavioral();
+  renderAudit();
+  renderSparkline();
+  document.getElementById('stat-agents').textContent = state.agentsOnline;
+}
+
+// ── FILTERS ────────────────────────────────────────────────
+document.getElementById('threat-filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  const f = btn.dataset.filter;
+  if (f === 'all') {
+    const allOn = Object.values(state.filter).every(Boolean);
+    ['critical','high','medium','low'].forEach(k => state.filter[k] = !allOn);
+    state.filter.all = !allOn;
+  } else {
+    state.filter[f] = !state.filter[f];
+    state.filter.all = ['critical','high','medium','low'].every(k => state.filter[k]);
+  }
+  // update button classes
+  document.querySelectorAll('#threat-filters .filter-btn').forEach(b => {
+    const ff = b.dataset.filter;
+    b.classList.toggle('active', ff === 'all' ? state.filter.all : state.filter[ff]);
+  });
+  renderThreats();
+});
+
+// ── QUARANTINE ACTIONS ─────────────────────────────────────
+window.restoreItem = function(id) {
+  const idx = state.quarantine.findIndex(q => q.id === id);
+  if (idx === -1) return;
+  const item = state.quarantine[idx];
+  state.quarantine.splice(idx, 1);
+  addAudit(`Restored ${item.file.split('/').pop()} from quarantine`, 'info');
+  renderQuarantine();
+  toast(`✅ Restored: ${item.file.split('/').pop()}`);
+};
+window.deleteItem = function(id) {
+  const idx = state.quarantine.findIndex(q => q.id === id);
+  if (idx === -1) return;
+  const item = state.quarantine[idx];
+  state.quarantine.splice(idx, 1);
+  addAudit(`Permanently deleted ${item.file.split('/').pop()} from quarantine`, 'high');
+  renderQuarantine();
+  toast(`🗑️ Deleted: ${item.file.split('/').pop()}`, 'warn');
+};
+
+// ── AUDIT HELPER ───────────────────────────────────────────
+function addAudit(msg, severity, agent) {
+  state.audit.unshift({
+    id: uid(), msg, severity: severity || 'info',
+    agent: agent || 'opus',
+    ts: new Date().toISOString(),
+  });
+  if (state.audit.length > 200) state.audit.pop();
+  state.minuteEventCount++;
+  renderAudit();
+}
+
+// ── TOAST ──────────────────────────────────────────────────
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  if (type === 'warn') el.style.borderColor = 'var(--medium)';
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ── CLOCK ──────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-US', { hour12: false });
+}
+setInterval(updateClock, 1000);
+
+// ── EVENTS/MIN COUNTER ─────────────────────────────────────
+setInterval(() => {
+  document.getElementById('stat-eps').textContent = state.minuteEventCount;
+  state.minuteEventCount = 0;
+}, 60000);
+
+// ── SIMULATION ─────────────────────────────────────────────
+function startSimulation() {
+  // Periodic new threat
+  setInterval(() => {
+    if (Math.random() < 0.3) {
+      const t = makeTheat();
+      state.threats.unshift(t);
+      state.threats.sort((a,b) => SEV_ORDER[b.severity] - SEV_ORDER[a.severity]);
+      if (state.threats.length > 30) state.threats.pop();
+      addAudit(`Threat detected: ${t.type} in ${t.file.split('/').pop()}`, t.severity);
+      renderThreats();
+      if (t.severity === 'critical') toast(`🚨 CRITICAL: ${t.type.replace(/_/g,' ')} detected`);
+    }
+  }, 8000);
+
+  // Auto-resolve old low threats
+  setInterval(() => {
+    const before = state.threats.length;
+    state.threats = state.threats.filter(t =>
+      t.severity !== 'low' || (Date.now() - new Date(t.ts).getTime()) < 300000
+    );
+    if (state.threats.length < before) {
+      addAudit(`Auto-resolved ${before - state.threats.length} low-severity threat(s)`, 'info');
+      renderThreats();
+    }
+  }, 15000);
+
+  // New quarantine item
+  setInterval(() => {
+    if (Math.random() < 0.2) {
+      const q = makeQuarantine();
+      state.quarantine.unshift(q);
+      addAudit(`Quarantined: ${q.file.split('/').pop()} (${q.threat_type})`, q.severity);
+      renderQuarantine();
+    }
+  }, 12000);
+
+  // Behavioral anomaly
+  setInterval(() => {
+    if (Math.random() < 0.25) {
+      const b = makeBehav();
+      state.behavioral.unshift(b);
+      if (state.behavioral.length > 20) state.behavioral.pop();
+      addAudit(`Behavioral anomaly: ${b.title} — ${b.desc}`, 'medium');
+      renderBehavioral();
+    }
+  }, 10000);
+
+  // Compliance drift
+  setInterval(() => {
+    if (Math.random() < 0.15) {
+      const fw = rand(['soc2','nist','pci']);
+      const delta = randInt(-3, 2);
+      const c = state.compliance[fw];
+      if (c) {
+        c.score = Math.min(100, Math.max(45, c.score + delta));
+        const ctrl = rand(c.checks);
+        const oldStatus = ctrl.status;
+        ctrl.status = rand(['pass','warn','fail']);
+        if (ctrl.status !== oldStatus) {
+          addAudit(`${c.name} control ${ctrl.name} changed: ${oldStatus} → ${ctrl.status}`, ctrl.status === 'fail' ? 'high' : 'medium');
+        }
+        renderCompliance();
+      }
+    }
+  }, 18000);
+
+  // Audit stream
+  setInterval(() => {
+    addAudit(makeAudit().msg, undefined, rand(AGENT_NAMES));
+    renderAudit();
+  }, 5000);
+
+  // Sparkline redraw
+  setInterval(renderSparkline, 3000);
+}
+
+// ── WEBSOCKET (real pubsub) ────────────────────────────────
+function tryWebSocket() {
+  try {
+    const ws = new WebSocket(WS_URL);
+    state.ws = ws;
+
+    ws.onopen = () => {
+      state.wsConnected = true;
+      document.getElementById('ws-dot').classList.remove('offline');
+      document.getElementById('ws-label').textContent = 'Connected';
+      document.getElementById('live-label').textContent = 'LIVE (pubsub)';
+      // subscribe to topics
+      TOPICS.forEach(t => ws.send(JSON.stringify({ action: 'subscribe', topic: t })));
+      addAudit('Connected to skcapstone pubsub', 'info', 'opus');
+    };
+
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        handlePubsubMessage(msg);
+      } catch(e) {}
+    };
+
+    ws.onclose = () => {
+      state.wsConnected = false;
+      document.getElementById('ws-dot').classList.add('offline');
+      document.getElementById('ws-label').textContent = 'Simulated';
+      // retry after 30s
+      setTimeout(tryWebSocket, 30000);
+    };
+
+    ws.onerror = () => { ws.close(); };
+  } catch(e) {
+    // WS not available; simulation is running
+  }
+}
+
+function handlePubsubMessage(msg) {
+  const topic   = msg.topic || '';
+  const payload = msg.payload || msg;
+
+  if (topic.includes('threats')) {
+    if (payload.type && payload.severity) {
+      state.threats.unshift({ id: uid(), ...payload, ts: payload.ts || new Date().toISOString() });
+      state.threats.sort((a,b) => SEV_ORDER[b.severity] - SEV_ORDER[a.severity]);
+      renderThreats();
+    }
+  } else if (topic.includes('quarantine')) {
+    if (payload.file) {
+      state.quarantine.unshift({ id: uid(), ...payload, ts: payload.ts || new Date().toISOString() });
+      renderQuarantine();
+    }
+  } else if (topic.includes('compliance')) {
+    if (payload.soc2 || payload.nist || payload.pci) {
+      state.compliance = { ...state.compliance, ...payload };
+      renderCompliance();
+    }
+  } else if (topic.includes('behavioral')) {
+    if (payload.title) {
+      state.behavioral.unshift({ id: uid(), ...payload, ts: payload.ts || new Date().toISOString() });
+      renderBehavioral();
+    }
+  } else if (topic.includes('audit')) {
+    if (payload.msg || payload.message) {
+      addAudit(payload.msg || payload.message, payload.severity, payload.agent || 'system');
+    }
+  }
+  state.minuteEventCount++;
+}
+
+// ── BOOT ───────────────────────────────────────────────────
+seedData();
+renderAll();
+updateClock();
+startSimulation();
+tryWebSocket();
+</script>
+
+</body>
+</html>

@@ -249,7 +249,7 @@ Say "security status" to check progress! 🛡️"""
 
 **To get enterprise-grade AI security:**
 • Say "install security scanner"
-• Or use: `curl -sSL https://install.sksecurity.io | bash`
+• Or use: `curl -sSL https://raw.githubusercontent.com/smilinTux/SKSecurity/main/install.sh | bash`
 
 **What you'll get:**
 🤖 AI-powered threat detection
