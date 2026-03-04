@@ -69,4 +69,4 @@ include = ["sksecurity*"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-sksecurity = ["data/*.json", "data/*.yml", "templates/*.html", "static/*"]
+sksecurity = ["data/*.json", "data/*.yml", "templates/*.html", "static/*", "SKILL.md"]

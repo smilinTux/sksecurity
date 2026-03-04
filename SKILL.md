@@ -1,6 +1,8 @@
 ---
 name: sk-security-enterprise
+emoji: "\U0001F6E1\uFE0F"
 description: AI-first security for your AI agents. Just say "install and run security scan" and get enterprise-grade protection in seconds. No Docker commands or configuration needed - pure conversational security.
+metadata: {"clawdbot":{"requires":{"bins":["sksecurity"]},"install":[{"id":"pipx","kind":"shell","command":"pipx install 'sksecurity'","bins":["sksecurity"],"label":"Install sksecurity (pipx)"}]}}
 ---
 
 # SKSecurity Enterprise - AI-First Security
