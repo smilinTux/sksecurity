@@ -35,6 +35,7 @@ class AdvancedSecuritySystem:
             {"name": "GitHub", "url": "https://api.github.com/advisories", "priority": 3},
         ]
         
+        self.whitelist = self._load_whitelist()
         self.init_system()
     
     def init_system(self):
@@ -83,6 +84,16 @@ class AdvancedSecuritySystem:
                 )
             ''')
     
+    def _load_whitelist(self):
+        wl_file = Path(self.workspace) / "security" / "config" / "whitelist.json"
+        if wl_file.exists():
+            try:
+                data = json.loads(wl_file.read_text())
+                return set(data.get("whitelist", []))
+            except Exception:
+                pass
+        return set()
+
     def log(self, message, level="INFO", metadata=None):
         """Enhanced logging with database storage"""
         timestamp = datetime.now().isoformat()
@@ -396,8 +407,11 @@ class AdvancedSecuritySystem:
             return "LOW"
     
     def quarantine_skill(self, skill_path, reason):
-        """Quarantine dangerous skill"""
+        """Quarantine dangerous skill (respects whitelist)."""
         skill_path = Path(skill_path)
+        if skill_path.name in self.whitelist:
+            self.log(f"WHITELISTED (skip quarantine): {skill_path.name}", "SECURITY")
+            return False
         quarantine_path = self.quarantine_dir / f"{skill_path.name}_{int(time.time())}"
         
         try:
