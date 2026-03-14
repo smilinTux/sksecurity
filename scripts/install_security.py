@@ -30,7 +30,7 @@ class SKSecurityInstaller:
             Path.home() / ".openclaw" / "openclaw.json",
             self.workspace / "openclaw.json",
         ]
-        if platform.system() != "Windows":
+        if platform.system() == "Linux":
             openclaw_config_paths.append(Path("/etc/openclaw/openclaw.json"))
         
         for config_path in openclaw_config_paths:
