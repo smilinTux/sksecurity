@@ -255,11 +255,13 @@ monitoring:
 
 threat_sources:
   - name: moltbook
-    url: https://moltbook.smilintux.org/feed
-    enabled: true
+    # placeholder: no live feed URL yet — disable or replace with a real threat-intel endpoint
+    url: https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/ai-safety.json
+    enabled: false
   - name: community
-    url: https://community.smilintux.org/threats
-    enabled: true
+    # placeholder: no community server yet — see https://github.com/smilinTux/SKSecurity
+    url: https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/traditional.json
+    enabled: false
 ```
 
 Environment variables (see `.env.example`):

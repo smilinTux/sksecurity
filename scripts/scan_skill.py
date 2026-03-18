@@ -20,26 +20,27 @@ class SecurityScanner:
     def __init__(self):
         self.threat_db = {}
         self.scan_results = {}
-        self.moltbook_url = "https://www.moltbook.com"
-        
+        # NOTE: moltbook.com is a placeholder domain — not a real threat-intel service.
+        # Using bundled community patterns from the repo instead.
+        self.community_feed_url = "https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/ai-safety.json"
+
     def update_threat_intel(self):
-        """Fetch latest security intelligence from Moltbook"""
-        print("🔄 Updating threat intelligence from Moltbook...")
-        
+        """Fetch latest security intelligence from community threat patterns"""
+        print("🔄 Updating threat intelligence from community patterns...")
+
         try:
-            # Fetch Moltbook security feed
-            with urllib.request.urlopen(f"{self.moltbook_url}/security-feed.json", timeout=10) as response:
+            with urllib.request.urlopen(self.community_feed_url, timeout=10) as response:
                 if response.getcode() == 200:
                     data = response.read().decode('utf-8')
                     self.threat_db = json.loads(data)
                     print(f"✅ Loaded {len(self.threat_db.get('threats', []))} threat signatures")
                 else:
-                    print(f"⚠️ Moltbook security feed unavailable (HTTP {response.getcode()})")
+                    print(f"⚠️ Community feed unavailable (HTTP {response.getcode()})")
                     # Load cached threats if available
                     self.load_cached_threats()
-                
+
         except Exception as e:
-            print(f"⚠️ Failed to fetch from Moltbook: {e}")
+            print(f"⚠️ Failed to fetch community patterns: {e}")
             self.load_cached_threats()
     
     def load_cached_threats(self):

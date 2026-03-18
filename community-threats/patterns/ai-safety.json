@@ -1,0 +1,177 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-03-11T00:00:00Z",
+  "source": "sksecurity-community",
+  "patterns": [
+    {
+      "id": "ai-safety-001",
+      "pattern": "abliterate|uncensor|unfilter|remove.?refusal",
+      "type": "ai_model_abliteration",
+      "category": "ai-safety",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "description": "Detects tools and scripts that remove safety guardrails (refusal directions) from AI models via weight surgery or fine-tuning",
+      "references": [
+        "https://arxiv.org/abs/2401.12187"
+      ],
+      "tags": ["abliteration", "safety-bypass", "model-surgery", "refusal-removal"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-002",
+      "pattern": "jailbreak|DAN|ignore.?previous.?instructions|you.?are.?now|act.?as.?if",
+      "type": "ai_jailbreak_toolkit",
+      "category": "ai-safety",
+      "severity": "HIGH",
+      "confidence": 0.80,
+      "description": "Detects jailbreak prompt toolkits including DAN (Do Anything Now), Crescendo attacks, and system prompt override attempts",
+      "references": [
+        "https://arxiv.org/abs/2307.15043",
+        "https://www.microsoft.com/en-us/security/blog/2024/04/02/analyzing-a-new-ai-jailbreak-technique-crescendo/"
+      ],
+      "tags": ["jailbreak", "dan", "prompt-override", "crescendo"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-003",
+      "pattern": "system.?prompt.*inject|CLAUDE\\.md.*inject|inject.*system.?prompt",
+      "type": "ai_prompt_injection",
+      "category": "ai-safety",
+      "severity": "CRITICAL",
+      "confidence": 0.90,
+      "description": "Detects infrastructure designed to inject content into AI system prompts, including CLAUDE.md manipulation and prompt template injection",
+      "references": [
+        "https://simonwillison.net/2024/Mar/5/prompt-injection/"
+      ],
+      "tags": ["prompt-injection", "system-prompt", "claude-md", "indirect-injection"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-004",
+      "pattern": "nsfw|explicit.?content|uncensored.?model|adult.?content.?generat",
+      "type": "ai_nsfw_pipeline",
+      "category": "ai-safety",
+      "severity": "HIGH",
+      "confidence": 0.75,
+      "description": "Detects NSFW and explicit content generation pipelines, including uncensored Stable Diffusion configs and adult content automation",
+      "tags": ["nsfw", "explicit", "uncensored", "content-generation"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-005",
+      "pattern": "guardrail.*(?:off|disable|bypass|remove)|safety.*(?:off|disable|bypass|remove)|filter.*(?:off|disable|bypass|remove)",
+      "type": "ai_safety_bypass",
+      "category": "ai-safety",
+      "severity": "MEDIUM",
+      "confidence": 0.70,
+      "description": "Detects configuration changes or scripts that disable AI safety guardrails, content filters, or moderation systems",
+      "tags": ["guardrail", "safety-bypass", "filter-disable", "moderation"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-006",
+      "pattern": "-unhinged|-uncensored|-abliterated|-jailbroken",
+      "type": "ai_uncensored_model",
+      "category": "ai-safety",
+      "severity": "HIGH",
+      "confidence": 0.80,
+      "description": "Detects references to AI model variants with safety guardrails removed, identified by common suffixes in model filenames and Ollama tags",
+      "tags": ["uncensored-model", "gguf", "ollama", "model-variant"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-007",
+      "pattern": "refusal.?direction|activation.?steering|representation.?engineering|steering.?vector",
+      "type": "ai_weight_surgery",
+      "category": "ai-safety",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "description": "Detects mechanistic interpretability tools used to identify and manipulate refusal directions in model weights via activation steering",
+      "references": [
+        "https://arxiv.org/abs/2310.01405",
+        "https://arxiv.org/abs/2401.12187"
+      ],
+      "tags": ["weight-surgery", "activation-steering", "mechanistic-interpretability", "refusal-direction"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-008",
+      "pattern": "proxy.*inject.*(?:system|prompt)|middleware.*(?:inject|prepend).*(?:system|prompt)|man.?in.?the.?middle.*prompt",
+      "type": "ai_proxy_injection",
+      "category": "ai-safety",
+      "severity": "CRITICAL",
+      "confidence": 0.90,
+      "description": "Detects reverse proxy or middleware configurations that inject or modify AI system prompts in transit (man-in-the-middle prompt injection)",
+      "tags": ["proxy-injection", "mitm", "reverse-proxy", "middleware", "system-prompt"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-009",
+      "pattern": "(?:from|import)\\s+transformers.*(?:AutoModelForCausalLM|AutoTokenizer).*(?:abliterat|uncensor|liberation)",
+      "type": "ai_model_abliteration",
+      "category": "ai-safety",
+      "severity": "HIGH",
+      "confidence": 0.90,
+      "description": "Detects Python scripts that import HuggingFace transformers with the apparent intent to abliterate or uncensor a model",
+      "tags": ["abliteration", "huggingface", "transformers", "python"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-010",
+      "pattern": "L1B3RT4S|LIBERT4S|lib3ration|l1berat",
+      "type": "ai_jailbreak_toolkit",
+      "category": "ai-safety",
+      "severity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Detects the L1B3RT4S family of jailbreak/liberation prompt systems that use leetspeak variants to bypass content filters",
+      "tags": ["jailbreak", "l1b3rt4s", "liberation", "leetspeak"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-011",
+      "pattern": "(?:LoRA|QLoRA|adapter).*(?:uncensor|unsafe|nsfw|toxic)",
+      "type": "ai_model_abliteration",
+      "category": "ai-safety",
+      "severity": "HIGH",
+      "confidence": 0.80,
+      "description": "Detects LoRA/QLoRA fine-tuning adapters designed to remove safety behavior from base models",
+      "tags": ["lora", "qlora", "fine-tuning", "adapter", "uncensor"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "ai-safety-012",
+      "pattern": "(?:tool|function).?call.*(?:fake|spoof|forge)|(?:fake|spoof|forge).*(?:tool|function).?call",
+      "type": "ai_prompt_injection",
+      "category": "ai-safety",
+      "severity": "CRITICAL",
+      "confidence": 0.85,
+      "description": "Detects attempts to forge or spoof AI tool/function calls, which can trick agents into executing unintended actions",
+      "tags": ["tool-call-forgery", "function-spoofing", "agent-attack"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    }
+  ]
+}

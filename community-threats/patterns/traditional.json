@@ -1,0 +1,315 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-03-11T00:00:00Z",
+  "source": "sksecurity-community",
+  "patterns": [
+    {
+      "id": "traditional-001",
+      "pattern": "(?:exec|eval)\\s*\\(",
+      "type": "code_injection",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.90,
+      "description": "Detects use of eval() and exec() for dynamic code execution, a common vector for code injection attacks",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/95.html"
+      ],
+      "tags": ["eval", "exec", "dynamic-code", "injection"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-002",
+      "pattern": "subprocess\\.(?:call|run|Popen|check_output)\\s*\\(",
+      "type": "command_injection",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "description": "Detects subprocess invocations that may be vulnerable to command injection if user input reaches the command string",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/78.html"
+      ],
+      "tags": ["subprocess", "command-injection", "shell"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-003",
+      "pattern": "os\\.system\\s*\\(",
+      "type": "command_injection",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.90,
+      "description": "Detects os.system() calls which execute shell commands and are highly susceptible to injection",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/78.html"
+      ],
+      "tags": ["os-system", "command-injection", "shell"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-004",
+      "pattern": "(?:password|passwd|secret|api_key|apikey|token)\\s*=\\s*[\"'][^\"']{8,}[\"']",
+      "type": "hardcoded_secrets",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.80,
+      "description": "Detects hardcoded credentials, API keys, and tokens assigned directly in source code",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/798.html"
+      ],
+      "tags": ["hardcoded-secret", "credential", "api-key", "token"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-005",
+      "pattern": "(?:AKIA|ASIA)[A-Z0-9]{16}",
+      "type": "hardcoded_secrets",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Detects AWS Access Key IDs (AKIA for long-term, ASIA for temporary STS credentials)",
+      "references": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+      ],
+      "tags": ["aws", "access-key", "akia", "credential"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-006",
+      "pattern": "-----BEGIN (?:RSA |DSA |EC )?PRIVATE KEY-----",
+      "type": "hardcoded_secrets",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.99,
+      "description": "Detects PEM-encoded private keys (RSA, DSA, EC) embedded in source files",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/321.html"
+      ],
+      "tags": ["private-key", "pem", "rsa", "credential"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-007",
+      "pattern": "(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,}",
+      "type": "hardcoded_secrets",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Detects GitHub personal access tokens, OAuth tokens, and other GitHub credential formats",
+      "references": [
+        "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github"
+      ],
+      "tags": ["github", "pat", "oauth-token", "credential"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-008",
+      "pattern": "npm_[A-Za-z0-9]{36,}",
+      "type": "hardcoded_secrets",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Detects npm access tokens embedded in source code or configuration files",
+      "tags": ["npm", "token", "credential"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-009",
+      "pattern": "(?:curl|wget)\\s+.*\\|\\s*(?:bash|sh|zsh)",
+      "type": "remote_code_execution",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "description": "Detects pipe-to-shell patterns (curl|bash) that download and execute remote code without inspection",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/829.html"
+      ],
+      "tags": ["pipe-to-shell", "curl-bash", "remote-execution"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-010",
+      "pattern": "__import__\\s*\\(",
+      "type": "code_injection",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.80,
+      "description": "Detects dynamic import via __import__(), often used to obfuscate malicious module loading",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/502.html"
+      ],
+      "tags": ["dynamic-import", "obfuscation", "injection"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-011",
+      "pattern": "pickle\\.loads?\\s*\\(",
+      "type": "deserialization",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "description": "Detects Python pickle deserialization which can execute arbitrary code when loading untrusted data",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/502.html"
+      ],
+      "tags": ["pickle", "deserialization", "arbitrary-code"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-012",
+      "pattern": "yaml\\.(?:load|unsafe_load)\\s*\\(",
+      "type": "deserialization",
+      "category": "traditional",
+      "severity": "MEDIUM",
+      "confidence": 0.70,
+      "description": "Detects unsafe YAML loading (yaml.load without SafeLoader) which can execute arbitrary Python objects",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/502.html"
+      ],
+      "tags": ["yaml", "deserialization", "unsafe-load"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-013",
+      "pattern": "eval\\(.*(?:atob|unescape|fromCharCode)",
+      "type": "obfuscated_code",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.90,
+      "description": "Detects obfuscated JavaScript execution combining eval() with encoding functions (atob, unescape, fromCharCode)",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/506.html"
+      ],
+      "tags": ["obfuscation", "eval", "javascript", "encoding"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-014",
+      "pattern": "socket\\.socket.*connect.*(?:exec|spawn|popen)",
+      "type": "reverse_shell",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.90,
+      "description": "Detects reverse shell patterns that open a socket connection and pipe it to a shell or command execution",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/506.html"
+      ],
+      "tags": ["reverse-shell", "socket", "backdoor"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-015",
+      "pattern": "sudo.*NOPASSWD|setuid\\(0\\)|seteuid\\(0\\)",
+      "type": "privilege_escalation",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "description": "Detects privilege escalation patterns including NOPASSWD sudo rules and setuid(0) calls",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/250.html"
+      ],
+      "tags": ["privilege-escalation", "sudo", "setuid", "root"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-016",
+      "pattern": "(?:xmrig|cryptonight|monero|coinhive|minergate)",
+      "type": "crypto_mining",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.90,
+      "description": "Detects cryptocurrency mining software signatures including XMRig, CryptoNight, and browser-based miners",
+      "tags": ["crypto-mining", "xmrig", "monero", "cryptojacking"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-017",
+      "pattern": "execSync\\s*\\(",
+      "type": "command_injection",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.80,
+      "description": "Detects Node.js synchronous shell execution via execSync(), which blocks the event loop and may be vulnerable to injection",
+      "tags": ["execsync", "nodejs", "shell", "command-injection"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-018",
+      "pattern": "\\.\\./\\.\\./|\\.\\.\\\\\\.\\.\\\\",
+      "type": "path_traversal",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.75,
+      "description": "Detects path traversal sequences (../../) that attempt to escape directory boundaries",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/22.html"
+      ],
+      "tags": ["path-traversal", "directory-traversal", "lfi"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-019",
+      "pattern": "(?:execute|cursor\\.execute)\\s*\\(.*%s|(?:execute|cursor\\.execute)\\s*\\(.*\\+.*\\+",
+      "type": "sql_injection",
+      "category": "traditional",
+      "severity": "HIGH",
+      "confidence": 0.75,
+      "description": "Detects SQL queries built with string concatenation or unsafe formatting, vulnerable to SQL injection",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/89.html"
+      ],
+      "tags": ["sql-injection", "string-concatenation", "parameterized-queries"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    },
+    {
+      "id": "traditional-020",
+      "pattern": "sk-[A-Za-z0-9]{48}",
+      "type": "hardcoded_secrets",
+      "category": "traditional",
+      "severity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Detects OpenAI API keys (sk-...) embedded in source code",
+      "tags": ["openai", "api-key", "credential"],
+      "reporters": 1,
+      "first_seen": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z"
+    }
+  ]
+}

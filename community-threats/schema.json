@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/smilinTux/sksecurity-threats/main/schema.json",
+  "title": "SKSecurity Community Threat Pattern",
+  "description": "Schema for threat patterns in the SKSecurity community threat feed.",
+  "type": "object",
+  "required": ["version", "updated", "patterns"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version (semver)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last update"
+    },
+    "source": {
+      "type": "string",
+      "description": "Feed source identifier",
+      "examples": ["sksecurity-community", "smilinTux"]
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pattern"
+      }
+    }
+  },
+  "$defs": {
+    "pattern": {
+      "type": "object",
+      "required": ["id", "pattern", "type", "category", "severity", "confidence", "description", "reporters", "first_seen", "last_updated"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique pattern identifier (category-NNN format)",
+          "pattern": "^[a-z]+-[a-z]+-\\d{3,}$",
+          "examples": ["ai-safety-001", "traditional-005"]
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regex pattern for detection. Must be valid Python re syntax.",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "type": {
+          "type": "string",
+          "description": "Threat type classification",
+          "enum": [
+            "ai_jailbreak_toolkit",
+            "ai_model_abliteration",
+            "ai_prompt_injection",
+            "ai_safety_bypass",
+            "ai_nsfw_pipeline",
+            "ai_uncensored_model",
+            "ai_weight_surgery",
+            "ai_proxy_injection",
+            "code_injection",
+            "command_injection",
+            "hardcoded_secrets",
+            "deserialization",
+            "remote_code_execution",
+            "dependency_vulnerability",
+            "obfuscated_code",
+            "reverse_shell",
+            "privilege_escalation",
+            "crypto_mining",
+            "path_traversal",
+            "sql_injection"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "description": "Top-level category",
+          "enum": ["ai-safety", "traditional"]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Threat severity level",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Base confidence score (0.0 to 1.0). Higher = fewer false positives.",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what this pattern detects",
+          "minLength": 10,
+          "maxLength": 500
+        },
+        "references": {
+          "type": "array",
+          "description": "URLs to relevant research, CVEs, or advisories",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "description": "Searchable tags for filtering",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          }
+        },
+        "reporters": {
+          "type": "integer",
+          "description": "Number of independent instances that have reported this pattern",
+          "minimum": 0
+        },
+        "first_seen": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the pattern was first reported"
+        },
+        "last_updated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the pattern was last modified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "signal": {
+      "type": "object",
+      "description": "Schema for anonymized signal submissions via GitHub Issues",
+      "required": ["signal_version", "pattern", "type", "category", "severity", "context", "hash", "instance_id", "timestamp"],
+      "properties": {
+        "signal_version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "The regex pattern that triggered the detection",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "type": {
+          "type": "string",
+          "description": "Threat type"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["ai-safety", "traditional"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        },
+        "context": {
+          "type": "string",
+          "description": "What kind of artifact was scanned (never the name)",
+          "enum": ["skill", "plugin", "model", "config", "unknown"]
+        },
+        "hash": {
+          "type": "string",
+          "description": "SHA256 hash of the matched content (prefix with sha256:)",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "instance_id": {
+          "type": "string",
+          "description": "Anonymized instance identifier (SHA256 of hostname + salt)",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

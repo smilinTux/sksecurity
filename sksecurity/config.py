@@ -55,17 +55,16 @@ class SecurityConfig:
         },
         'threat_sources': [
             {
-                'name': 'Moltbook',
-                'url': 'https://www.moltbook.com/security-feed.json',
+                'name': 'Community AI Safety',
+                # moltbook.com was a placeholder domain. Using bundled community patterns.
+                'url': 'https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/ai-safety.json',
                 'enabled': True,
                 'priority': 1
             },
             {
-                'name': 'Community',
-                # Community threat-intel endpoint — update URL once a domain is
-                # configured. See https://github.com/smilinTux/SKSecurity for status.
-                'url': 'https://github.com/smilinTux/SKSecurity',
-                'enabled': False,
+                'name': 'Community Traditional',
+                'url': 'https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/traditional.json',
+                'enabled': True,
                 'priority': 2
             }
         ],

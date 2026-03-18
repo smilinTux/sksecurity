@@ -246,15 +246,14 @@ security:
   framework: "$FRAMEWORK"
   
 threat_sources:
-  - name: "Moltbook"
-    url: "https://www.moltbook.com/security-feed.json"
+  - name: "Community AI Safety"
+    # Bundled community patterns from the repo (no external domain required).
+    url: "https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/ai-safety.json"
     enabled: true
     priority: 1
-  - name: "Community"
-    # Community threat-intel endpoint — update URL once a domain is configured.
-    # See https://github.com/smilinTux/SKSecurity for status.
-    url: "https://github.com/smilinTux/SKSecurity"
-    enabled: false
+  - name: "Community Traditional"
+    url: "https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/traditional.json"
+    enabled: true
     priority: 2
 
 monitoring:

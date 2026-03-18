@@ -172,7 +172,8 @@ class SKSecurityInstaller:
                 "risk_threshold": 80,
                 "dashboard_port": 8888,
                 "threat_sources": [
-                    {"name": "Moltbook", "url": "https://www.moltbook.com/security-feed.json", "enabled": True},
+                    # moltbook.com is a placeholder — not a real threat-intel endpoint. Disabled.
+                    {"name": "Moltbook", "url": "https://www.moltbook.com/security-feed.json", "enabled": False},
                     {"name": "NVD", "url": "https://services.nvd.nist.gov/rest/json/cves/2.0", "enabled": True},
                     {"name": "GitHub", "url": "https://api.github.com/advisories", "enabled": True}
                 ],
@@ -417,7 +418,7 @@ if __name__ == '__main__':
         print()
         print("🌐 Community Support:")
         print("   GitHub: https://github.com/smilinTux/SKSecurity")
-        print("   Moltbook: https://moltbook.com/community/security")
+        print("   Docs: https://github.com/smilinTux/SKSecurity/tree/main/docs")
         print()
         print("✨ Welcome to enterprise-grade AI security!")
     

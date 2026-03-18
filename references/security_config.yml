@@ -9,8 +9,9 @@ security:
   
   # Threat intelligence sources
   threat_sources:
-    - name: "Moltbook"
-      url: "https://www.moltbook.com/security-feed.json" 
+    - name: "Community AI Safety"
+      # moltbook.com was a placeholder — replaced with bundled community patterns.
+      url: "https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/ai-safety.json"
       priority: 1
       enabled: true
     - name: "NVD"

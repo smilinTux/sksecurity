@@ -15,15 +15,18 @@ class ThreatUpdater:
     def __init__(self):
         self.script_dir = Path(__file__).parent
         self.cache_file = self.script_dir.parent / "references" / "threat_cache.json"
+        # NOTE: moltbook.com is a placeholder domain — not a real threat-intel service.
+        # Replace these URLs with actual threat intelligence endpoints before enabling.
+        # Community patterns are available in the repo under community-threats/patterns/.
         self.sources = [
             {
-                "name": "Moltbook",
-                "url": "https://www.moltbook.com/security-feed.json",
+                "name": "Community AI Safety Patterns",
+                "url": "https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/ai-safety.json",
                 "priority": 1
             },
             {
-                "name": "Moltbook Security API", 
-                "url": "https://api.moltbook.com/security/threats.json",
+                "name": "Community Traditional Patterns",
+                "url": "https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/traditional.json",
                 "priority": 2
             }
         ]

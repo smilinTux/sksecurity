@@ -30,7 +30,8 @@ class AdvancedSecuritySystem:
         
         # Security configuration
         self.threat_sources = [
-            {"name": "Moltbook", "url": "https://www.moltbook.com/security-feed.json", "priority": 1},
+            # moltbook.com is a placeholder — not a real threat-intel endpoint. Disabled.
+            {"name": "Moltbook", "url": "https://www.moltbook.com/security-feed.json", "priority": 1, "enabled": False},
             {"name": "NVD", "url": "https://services.nvd.nist.gov/rest/json/cves/2.0", "priority": 2},
             {"name": "GitHub", "url": "https://api.github.com/advisories", "priority": 3},
         ]
