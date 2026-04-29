@@ -16,7 +16,9 @@ function checkInstalled() {
     try {
       execSync(`${py} -c "import sksecurity"`, { stdio: "pipe" });
       return true;
-    } catch {}
+    } catch (e) {
+      // python not found on this path variant — try next
+    }
   }
   return false;
 }
