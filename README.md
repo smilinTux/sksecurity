@@ -317,6 +317,48 @@ Report bugs and request features at <https://github.com/smilinTux/sksecurity/iss
 
 ---
 
+## First Principles & The Full Vertical
+
+> **Get back to first principles.**
+> The modern security posture is rented too. Your threat feeds phone home to a vendor. Your secrets scanner reports to a SaaS dashboard. Your audit log lives in someone else's SIEM. You don't own your perimeter — you subscribe to it.
+>
+> We rebuilt it from the ground up. **Own the full vertical** — silicon, OS, identity, data, models, security, comms, apps, soul. Every layer open. Every layer swappable. Every layer **yours**.
+>
+> Your audit log never leaves your disk. Your keys are sovereign (hierarchical KMS, your hardware, your seal). Your threat intel is local-first. **Sovereignty isn't a feature — it's the foundation.**
+>
+> 🐧 This is SKWorld. Own the whole stack.
+
+**SKSecurity is your Security layer** — the perimeter of the silicon→soul vertical. It doesn't phone home to a vendor dashboard; it runs on your box, stores findings in a local SQLite database, and seals your keys in a sovereign KMS you control. It scans AI inputs before they reach your models, detects secrets before they leave your repo, and logs every agent action to an immutable local audit trail.
+
+**Data sovereignty angle:** All scan results, quarantine records, KMS audit logs, and threat intelligence are stored in `~/.sksecurity/` on your hardware — encrypted at rest with AES-256-GCM keys you own. The web dashboard, PDF reports, and runtime monitors all run locally. Nothing is reported out.
+
+**SKCapstone alignment:** SKSecurity is an **independent singleton** with respect to skcapstone at the code level — its `pyproject.toml` has no skcapstone dependency and its source imports no skcapstone modules. It integrates into the vertical as a protocol-level peer: SKCapstone lists `sksecurity>=1.2.0` as a dependency and proxies it through `mcp_tools/security_tools.py`; SKSecurity exposes its own MCP server (`sksecurity-mcp`) with 5 tools that any MCP-capable agent (Claude, OpenClaw, etc.) can call directly. It is a sovereign security engine that the framework hub wraps — not subordinate to it.
+
+### Where SKSecurity Sits in the Vertical
+
+```mermaid
+flowchart TD
+    SILICON["🖥️ Silicon\n(your hardware)"]
+    OS["🐧 skos / OS"]
+    SKCAPSTONE["⚡ SKCapstone\n(Framework Hub — wraps sksecurity via MCP)"]
+    CAPAUTH["🔐 capauth\n(Identity — audit signed by identity)"]
+    SKSECURITY["🛡️ SKSecurity — Security Layer\n(this repo)\nThreat scanner · Secret guard · Email screener\nSovereign KMS · Quarantine · MCP server\nRuntime monitor · PDF audit · Truth engine"]
+    DATA["🧠 skmemory\n(Data — protected by security layer)"]
+    SOUL["✨ skseed\n(Soul — logic audited by truth engine)"]
+
+    SILICON --> OS
+    OS --> SKCAPSTONE
+    SKCAPSTONE --> CAPAUTH
+    SKCAPSTONE -.->|"wraps via security_tools.py MCP"| SKSECURITY
+    CAPAUTH --> SKSECURITY
+    SKSECURITY --> DATA
+    SKSECURITY --> SOUL
+
+    style SKSECURITY fill:#7b2d00,color:#fff,stroke:#4a1a00
+```
+
+---
+
 ## License
 
 GPL-3.0-or-later © [smilinTux.org](https://smilintux.org)
