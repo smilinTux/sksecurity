@@ -359,6 +359,39 @@ flowchart TD
 
 ---
 
+## Integration modes (skcapstone)
+
+sksecurity supports three runtime modes with respect to skcapstone:
+
+| Mode | Trigger | Alert path | Scheduler |
+|---|---|---|---|
+| **Standalone** | `skcapstone` not installed, or `SK_STANDALONE=1` | Native `logging` (structured log at matching level) | Native `SecurityMonitor` daemon |
+| **Integrated** | `skcapstone` installed (default-on by presence) | `sdk.alert()` → PubSub topic `sksecurity.<severity>` → Telegram/notify | `sdk.register_job()` → fleet `skscheduler` drop-in `sksecurity_intel_refresh` |
+| **Forced standalone** | `SK_STANDALONE=1` env var | Native `logging` | Native |
+
+### Enabling integration
+
+```bash
+pip install sksecurity[skcapstone]
+```
+
+No config change needed — presence of the `skcapstone` package is the signal.
+
+### `~/.skcapstone/` filesystem contract
+
+When integrated, sksecurity writes:
+- `~/.skcapstone/config/jobs.d/sksecurity_intel_refresh.yaml` — fleet scheduler drop-in (runs `sksecurity update --sources all` every 24h)
+- `~/.skcapstone/registry/sksecurity.json` — service discovery entry
+
+Alert topics follow the sk* convention: `sksecurity.<severity>` (e.g. `sksecurity.error`).
+The semantic event name (e.g. `process`, `secret_leak`) lives in the payload `event` field —
+not the topic suffix — so `skcapstone alerts` routes by severity.
+
+sksecurity severity levels map to sk-alert levels: `critical→critical`, `high→error`,
+`medium→warn`, `low→info` (see `level_for_severity()` in `sksecurity/integration.py`).
+
+---
+
 ## License
 
 GPL-3.0-or-later © [smilinTux.org](https://smilintux.org)
