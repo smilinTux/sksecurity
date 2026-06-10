@@ -182,11 +182,35 @@ class SecurityMonitor:
         """Handle monitoring events."""
         with self._lock:
             self._events.append(event)
-    
+        # Share the detection on the mesh-wide sk-alert bus when skcapstone is
+        # present (agent-to-agent threat sharing); degrades to local-only
+        # tracking otherwise. Never let alerting disrupt monitoring.
+        try:
+            from . import integration
+
+            integration.alert(
+                event.type,
+                {"message": event.message, **(event.details or {}),
+                 "severity": event.severity},
+                level=integration.level_for_severity(event.severity),
+            )
+        except Exception:
+            pass
+
     def start(self):
         """Start all monitoring."""
         if self.config.runtime_monitoring:
             self.runtime_monitor.start()
+        # When skcapstone is present, advertise to service discovery and
+        # register the daily threat-intel refresh with the fleet scheduler.
+        # No-op when skcapstone is absent.
+        try:
+            from . import integration
+
+            integration.register_self()
+            integration.ensure_schedule()
+        except Exception:
+            pass
     
     def stop(self):
         """Stop all monitoring."""

@@ -51,6 +51,9 @@ web = [
     "flask>=2.3.0",
     "flask-cors>=4.0.0",
 ]
+skcapstone = [
+    "skcapstone>=0.6.8",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
