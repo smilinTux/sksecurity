@@ -182,3 +182,62 @@ What shipped:
 **Honest scope.** The per-project/per-service/dashboard views are *visibility*, not new protection. They cannot mark a surface quantum-resistant unless its live suite already is. SKStacks services are honestly classical/symmetric/n/a with unknowns flagged `unaudited`; PQC has not reached the stack-transport layer (no PQC TLS / hybrid KEX in Traefik). No global / end-to-end / post-quantum claim is made.
 
 Next milestones: fleet prekey publication (so the 418 classical groups become migratable), then Phase 2 (signatures / identity — Q6/Q7). The JSON ledger will record each flip automatically as `pqc-snapshot` runs.
+
+## 2026-06-24 — Entry #8: Per-message + DID/challenge signatures → hybrid Ed25519 + ML-DSA-65 (AVAILABLE, opt-in/negotiated)  ✍️ *(Phase 2 / Q7)*
+
+The first Phase-2 (authentication) milestone. A hybrid signature primitive is now
+available for the **per-message** (`skcomms` SignedEnvelope) and **DID/challenge**
+(`capauth`) signing surfaces — composing **Ed25519 (RFC 8032) + ML-DSA-65 (FIPS
+204)** with the standard hybrid AND gate (valid iff BOTH legs verify; unforgeable
+while EITHER scheme holds). It is **additive, opt-in/negotiated, and reversible**
+— classical `ed25519-v1` stays the default and existing classical envelopes /
+challenges verify byte-for-byte unchanged.
+
+**The lattice math is bound to liboqs (`oqs.Signature("ML-DSA-65")`), never
+re-implemented.** The only original code is the composite encode/verify glue.
+
+What shipped:
+- **`skcomms/pqsig.py`** — the vetted hybrid-signature primitive: `hybrid_sign` /
+  `hybrid_verify` over a versioned, length-prefixed, suite-tagged composite wire
+  format (the interop contract). A per-signer ML-DSA keypair (generated/persisted
+  via `load_or_create_signer_keypair` at `~/.skcomms/pqc/<signer>_mldsa65.key`),
+  **separate from and never derived from the PGP identity key.**
+- **`skcomms` SignedEnvelope** — `sig_suite` now selects `ed25519-v1` (classical,
+  default for old peers) vs `mldsa65-ed25519-v2` (hybrid). New
+  `HybridEnvelopeSigner` + a hybrid branch in `EnvelopeVerifier.verify`
+  (either-or). Additive `hybrid_ed25519_pub` / `hybrid_mldsa_pub` fields carry the
+  verifier's public keys inline; old serialized envelopes still parse.
+- **`capauth` DID/challenge** — `capauth/pqc_identity.py`
+  (`respond_to_challenge_hybrid` / `verify_challenge_hybrid`) attaches a hybrid
+  signature **alongside** the classical PGP challenge signature over the same
+  bytes; `require_hybrid` blocks classical downgrade once a peer is known
+  hybrid-capable. The classical `identity.respond/verify_challenge` path is
+  untouched.
+- **Self-report** — `sksecurity/pqc_report.py` flips the **`envelope-sig`** and
+  **`identity`** surfaces to `mldsa65-ed25519-v2` [hybrid-pq] (FIPS 204) when a
+  hybrid object is presented (`envelope_sig_surface_for` /
+  `challenge_sig_surface_for`), classical otherwise — same per-object honesty as
+  the Q2/Q3 KEM surfaces.
+
+### Current posture
+
+| Surface | Suite | Status |
+|---|---|---|
+| envelope-sig (hybrid-signed) | `mldsa65-ed25519-v2` | **hybrid-pq** (opt-in) |
+| envelope-sig (classical / default) | `ed25519-v1` | classical |
+| identity / challenge (hybrid leg) | `mldsa65-ed25519-v2` | **hybrid-pq** (DID/challenge layer only) |
+| identity ROOT PGP key | `ed25519-v1` | **classical — NOT migrated (Sequoia gated)** |
+| group-key / dm / envelope-payload (KEM) | `x25519-mlkem768` | hybrid-pq (where negotiated) |
+| at-rest (operator store) | `x25519-mlkem768` | hybrid-pq |
+
+**Honest scope.** This is **per-message + challenge-layer** authentication, not a
+root-identity migration. The **ROOT PGP identity key is unchanged and still
+classical** — that is the separate, gated Sequoia decision (plan §3 S1, §7). The
+hybrid signature is unforgeable only while at least one of Ed25519 / ML-DSA-65
+holds; it is **opt-in/negotiated** (classical peers keep working) and not active
+unless a signer explicitly uses the hybrid suite. No global / end-to-end /
+"quantum-proof" claim is made. FIPS 204 (ML-DSA), RFC 8032 (Ed25519) cited.
+
+Next milestones: Q6 Sequoia migration of the PGP backend (prerequisite for
+migrating the root identity itself), then the root-key rotation ceremony — both
+gated on Chef's decision.
