@@ -67,3 +67,27 @@ Phase 1 / Q4 landed: new `skchat/src/skchat/atrest_wrap.py` (`wrap_dek`/`unwrap_
 **🏁 Phase-1 harvest-now-decrypt-later surfaces all have a hybrid path AVAILABLE** (group-key, DM/envelope, at-rest — opt-in/negotiated/per-store). The **default** `build_report()` stays classical until peers publish prekeys + groups/stores migrate — the self-report reflects reality, never overclaims.
 
 Next milestones: Q5 (`sk_pqc` app-side hybrid PQC + prekey publication → flips the app onto the hybrid path), wire the at-rest wrap over skmem-pg / memory / root-key backup, then a fleet migration so the *default* lines flip to hybrid-pq. Phase 2 = signatures/identity (Q6/Q7).
+
+## 2026-06-24 — Entry #5: Q5 app-side hybrid PQC LIVE — DMs go hybrid in the BROWSER  🔐🌐 *(per-conversation / negotiated, web-priority)*
+
+Phase 1 / Q5 landed in the Flutter client (`skchat-app`) + the daemon webui (`skchat`), wiring the operator's **actual DMs** onto the hybrid path — including **in the browser**, which is the headline: WebCrypto has no PQC, so the app binds **`sk_pqc`'s noble web backend** (`@noble/post-quantum` ml_kem768, bundled to `web/sk_pqc_noble.js` and exposed as `globalThis.skPqc`) to do real **X25519 + ML-KEM-768** in-page. Native (mobile/desktop) liboqs-FFI sealing is the follow-up; web is the priority since the app runs as a Flutter web build over a tailscale URL.
+
+What shipped:
+- **`PqDmCodec` (Dart)** — a byte-for-byte mirror of `skcomms/pqdm.py`: `encap → HKDF-SHA256(info=_INFO_WRAP‖"|"‖aad) → AES-256-GCM(body, aad=downgrade-lock) → ct(1120)‖nonce(12)‖aesgcm` packed under the `pqdm1:x25519-mlkem768:` scheme. The KEM is `sk_pqc` (same `x25519-mlkem768` vector as Q1's `pqkem`); the wrap reuses `package:cryptography` HKDF+AES-GCM.
+- **Per-device hybrid keypair**, generated once via `sk_pqc.generateKeyPair()` and persisted in `flutter_secure_storage`, reused across sessions. The app **publishes a `PrekeyBundle`** (`{suite, hybrid_public_hex(1216B), signature, key_id, device_id}`) to the daemon on startup.
+- **Prekey store + endpoints** (`skchat/daemon_proxy.py`): `POST /api/v1/prekey` (publish), `GET /api/v1/prekey/{peer}` (fetch). **Lumina publishes her OWN hybrid prekey** (`pq_prekeys.lumina_bundle()`, key generated via `pqkem`, persisted 0600) — so chef-app ↔ Lumina negotiates hybrid. The send path opens an inbound `pqdm1:` token with Lumina's private key (brain sees plaintext) and **seals her reply** to the operator's published prekey.
+- **Send/receive**: on send, if the recipient advertises a prekey the body is sealed hybrid; else the classical path is used **unchanged** (control sentinels `__…` are never sealed). On receive, a `pqdm1:` token is opened with the device private key. The **per-conversation self-report** flips to `hybrid-pq`, surfaced by a 🔐 **PQ** badge in the conversation header.
+
+**The interop gate passed BOTH directions** (the requirement): a Python-`pqdm.py`-sealed blob is opened by the Dart `PqDmCodec`, and a Dart-sealed blob is opened by `pqdm.py` — proven by cross-impl vectors (`skchat-app/test/pqc_vectors/{python_sealed,dart_sealed}.json` + `dart test` + `verify_dart_vector.py`). AAD bytes match `downgrade_lock_aad` exactly; the downgrade-lock fails an open on suite mismatch.
+
+| Surface | Suite | Status |
+|---|---|---|
+| dm (app ↔ Lumina, hybrid-negotiated, **web**) | `x25519-mlkem768` | **hybrid-pq** |
+| dm (classical-only peer / no prekey) | `x25519-pgp-wrap-v1` | classical |
+| group-key (hybrid-migrated) | `x25519-mlkem768` | **hybrid-pq** |
+| at-rest (hybrid-wrapped store) | `x25519-mlkem768` | **hybrid-pq** |
+| identity / envelope-sig | `ed25519-v1` | classical |
+
+**Honest scope — negotiated, web-priority.** Hybrid engages only when both sides advertise a prekey (app published one + Lumina published hers). Classical peers stay byte-for-byte unchanged (negotiated downgrade). The prekey **signature stays classical** (Phase 2 / Q7) — only the KEM is quantum-resistant. **In-browser today:** keygen + seal + open via noble (no native binary needed). **Native-mobile follow-up:** the same `PqDmCodec` runs on liboqs FFI once per-arch liboqs binaries ship — no code change, just the backend. The default `build_report()` stays classical until prekeys are published fleet-wide.
+
+Next milestones: native-mobile liboqs binaries (drop-in for the same codec), fleet prekey publication so the *default* DM line flips hybrid-pq, then Phase 2 (signatures / identity — Q6/Q7).
