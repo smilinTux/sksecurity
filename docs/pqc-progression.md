@@ -37,24 +37,33 @@ Phase 1 / Q2 (the marquee HNDL item, plan §3 S5 / §5) landed in code: `skchat/
 
 Next milestones: Q3 (DM/envelope → hybrid KEM), Q4 (at-rest → hybrid key-wrap), Q5 (`sk_pqc` — app-side hybrid PQC), then a fleet migration so the *default* group-key line flips to hybrid-pq.
 
-## 2026-06-24 — Entry #3: Q4 at-rest → hybrid key-wrap AVAILABLE + fingerprint-keying bug FIXED  🔐 *(per-store / opt-in)*
+## 2026-06-24 — Entry #3: Q3 DM/envelope → hybrid KEM AVAILABLE  🔐 *(per-conversation / opt-in, negotiated)*
 
-Phase 1 / Q4 (plan §3 S11 / §5 Phase 1 / §6 Q4) landed in code: new `skchat/src/skchat/atrest_wrap.py` (`wrap_dek`/`unwrap_dek`, versioned + suite-tagged) + a refactor of `skchat/src/skchat/encrypted_store.py` (`DekManager`, hybrid-wrapped random DEK, back-compat read + `migrate_store()`). Two things shipped together:
+Phase 1 / Q3 (plan §3 S4/S6, §5) landed in code: a single shared sealing primitive `skcomms/src/skcomms/pqdm.py` plus hybrid methods on `skcomms/src/skcomms/crypto.py` (`EnvelopeCrypto`) and `skchat/src/skchat/crypto.py` (`ChatCrypto`). A conversation whose recipient advertises a **signed hybrid-KEM prekey** (PQXDH-style `PrekeyBundle`) now wraps the DM / envelope-payload symmetric key via the hybrid **X25519 + ML-KEM-768** KEM (`skcomms.pqkem`, HKDF(X25519‖ML-KEM-768) combiner, liboqs) and AES-256-GCM-seals the body. The ~1.1 KB KEM ciphertext rides in the (first) message; sealed blob `ct(1120) ‖ nonce(12) ‖ aesgcm(body)`, stored under a `pqdm1:` scheme prefix in the existing `content` field. **Downgrade-lock:** the negotiated suite + (sender, recipient) are bound into the AEAD AAD, so a MITM that strips the hybrid prekey can't downgrade silently — the recipient's open fails (`DowngradeDetected`) and/or `negotiated_suite` flips classical, which the per-conversation self-report surfaces.
 
-1. **Fingerprint-keying bug fixed (classical, independent of quantum).** The at-rest store previously derived its data-encryption key (DEK) from the PGP **fingerprint** via HKDF — a low-entropy, often *public* value, so the encryption was effectively keyed by something non-secret. The DEK is now **high-entropy random** (`os.urandom(32)`), generated once and persisted **wrapped** (cleartext DEK never touches disk). The only secret is a locally-held hybrid recipient **private key** (0600). `StorageKeyDeriver` survives **only** for back-compat reads / migration.
-2. **At-rest HNDL fix.** The DEK is sealed with the hybrid **X25519 + ML-KEM-768** KEM (`skcomms.pqkem`, `HKDF(X25519‖ML-KEM-768)` combiner, liboqs) via `atrest_wrap.wrap_dek` — the same idiom as Q2's `group_ratchet.wrap_epoch_secret`. The wrapped DEK stays secret unless **both** primitives break, so a harvested encrypted store / backup is not retroactively decryptable after a CRQC. Bulk cipher stays AES-256-GCM (Grover-only, untouched). The wrap blob is `MAGIC || version || suite_id || hybrid_ct || nonce || wrapped` — versioned and suite-tagged for Q0 agility; `describe_blob()` reports the suite without the private key.
+**Honest scope — opt-in, negotiated.** Hybrid engages **only when both sides advertise it**. A classical-only peer keeps the existing PGP path byte-for-byte unchanged (the hybrid path is additive `*_hybrid`/`*_auto`). The prekey **signature stays classical** (Phase 2 / Q7); only the KEM is quantum-resistant here. **Flutter contract:** native `sk_pqc` publishes a `PrekeyBundle{suite:"x25519-mlkem768", hybrid_public_hex:<1216 B>, signature, key_id}` and decapsulates with its 2432-byte hybrid private key; the web PWA (no WebCrypto PQC) advertises no prekey → negotiated classical downgrade (reduced-assurance leg).
+
+## 2026-06-24 — Entry #4: Q4 at-rest → hybrid key-wrap AVAILABLE + fingerprint-keying bug FIXED  🔐 *(per-store / opt-in)*
+
+Phase 1 / Q4 landed: new `skchat/src/skchat/atrest_wrap.py` (`wrap_dek`/`unwrap_dek`, versioned + suite-tagged) + a refactor of `encrypted_store.py` (`DekManager`, hybrid-wrapped random DEK, back-compat read + `migrate_store()`). Two fixes shipped together:
+1. **Fingerprint-keying bug fixed (classical).** The DEK was HKDF-derived from the PGP **fingerprint** — a low-entropy, often *public* value. It is now **high-entropy random** (`os.urandom(32)`), persisted **wrapped** (cleartext DEK never touches disk); the only secret is a locally-held hybrid private key (0600).
+2. **At-rest HNDL fix.** The DEK is sealed with hybrid **X25519 + ML-KEM-768** (`atrest_wrap.wrap_dek`) — secret unless **both** primitives break, so a harvested store/backup is not retroactively decryptable. Bulk cipher stays AES-256-GCM.
+
+**No data loss.** Existing stores stay readable (legacy fingerprint-key fallback); `migrate_store()` re-wraps each message under the new DEK, preserving plaintext exactly (proven by round-trip tests; the 19 pre-existing `test_encrypted_store.py` tests stay green). **Covered now:** the skchat at-rest chat store. **Follow-up:** skmem-pg dumps, memory trees, capauth root-key backup (same `wrap_dek` layer).
+
+### Current posture (per-surface availability — Phase 1 complete)
 
 | Surface | Suite | Status |
 |---|---|---|
 | identity | `ed25519-v1` | classical |
 | envelope-sig | `ed25519-v1` | classical |
-| group-key (hybrid-migrated group) | `x25519-mlkem768` | hybrid-pq |
-| group-key (default / un-migrated group) | `rsa-pgp-wrap-v1` | classical |
+| group-key (hybrid-migrated) | `x25519-mlkem768` | **hybrid-pq** |
+| group-key (default / un-migrated) | `rsa-pgp-wrap-v1` | classical |
+| dm / envelope (hybrid-negotiated) | `x25519-mlkem768` | **hybrid-pq** |
+| dm / envelope (classical-only / downgraded) | `x25519-pgp-wrap-v1` | classical |
 | at-rest (hybrid-wrapped store) | `x25519-mlkem768` | **hybrid-pq** |
 | at-rest (un-migrated / bulk only) | `aes256-gcm-v1` | symmetric |
 
-**No data loss — proven round-trip.** Existing encrypted stores stay **readable**: open with the legacy fingerprint key supplied and old content decrypts via fallback; `EncryptedChatHistory.migrate_store()` re-wraps every message under the new random+hybrid-wrapped DEK (decrypt-old → re-encrypt-new), preserving plaintext **exactly**. Tests prove: write under old scheme → migrate → read back identical; DEK ≠ any fingerprint-derived key; malformed/tampered/truncated/bad-version blobs raise `AtRestWrapFormatError`; the 19 pre-existing `test_encrypted_store.py` tests stay green.
+**🏁 Phase-1 harvest-now-decrypt-later surfaces all have a hybrid path AVAILABLE** (group-key, DM/envelope, at-rest — opt-in/negotiated/per-store). The **default** `build_report()` stays classical until peers publish prekeys + groups/stores migrate — the self-report reflects reality, never overclaims.
 
-**Honest scope — AVAILABLE, not the global default.** The hybrid wrap is **per-store and opt-in**: `EncryptedChatHistory.from_identity()` now creates new stores with a hybrid-wrapped DEK, but existing stores are not auto-migrated. The self-report reflects **reality per store** (`EncryptedChatHistory.crypto_self_report()` / `sksecurity.pqc_report.atrest_surface_for(store)`); the **default** `build_report()` keeps the at-rest surface at the `aes256-gcm-v1` symmetric baseline until stores migrate. **Covered now:** the skchat at-rest chat store. **Follow-up (same wrap layer, not yet wired):** skmem-pg dumps, memory flat-file trees, and the capauth root-key backup — `atrest_wrap.wrap_dek` is the building block; wiring those sealers is the remaining Q4 surface work.
-
-Next milestones: wire the wrap layer over skmem-pg dumps / memory trees / root-key backup; Q5 (`sk_pqc` — app-side hybrid PQC); then fleet migration so the *default* at-rest + group-key lines flip to hybrid-pq.
+Next milestones: Q5 (`sk_pqc` app-side hybrid PQC + prekey publication → flips the app onto the hybrid path), wire the at-rest wrap over skmem-pg / memory / root-key backup, then a fleet migration so the *default* lines flip to hybrid-pq. Phase 2 = signatures/identity (Q6/Q7).

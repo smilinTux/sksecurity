@@ -258,6 +258,65 @@ def group_surface_for(group) -> tuple[str, str, str, str]:
     return ("group-key", "skchat (GroupChat.kem_suite)", suite_id, note)
 
 
+#: Classical fallback suite for a DM/envelope conversation with no hybrid prekey.
+DEFAULT_CONVERSATION_SUITE = "x25519-pgp-wrap-v1"
+
+
+def conversation_surface_for(
+    negotiated_suite: str,
+    kind: str = "dm",
+    peer: str = "",
+) -> tuple[str, str, str, str]:
+    """Build a per-conversation DM/envelope surface tuple (PQC Q3 — REALITY).
+
+    Mirrors :func:`group_surface_for` for the 1:1 / envelope confidentiality
+    surfaces (plan §3 S4/S6). The default :func:`build_report` describes the
+    *default* (classical) DM/envelope suite for honesty; this helper instead
+    reflects a SPECIFIC conversation's actually-negotiated ``kem_suite`` so a
+    hybrid conversation reports ``x25519-mlkem768`` [hybrid-pq] while a classical
+    (downgraded / classical-only-peer) conversation still reports classical.
+
+    The negotiated suite comes from
+    ``EnvelopeCrypto.negotiated_suite`` / ``ChatCrypto.negotiated_suite`` (or the
+    ``kem_suite`` recorded on a sealed message's metadata) — never hard-coded, so
+    a silent-downgrade attempt shows up here as a classical line rather than a
+    hybrid one.
+
+    Args:
+        negotiated_suite: The suite the conversation actually used
+            (``x25519-mlkem768`` for hybrid, else the classical wrap).
+        kind: ``"dm"`` (skchat 1:1) or ``"envelope"`` (skcomms payload).
+        peer: Optional peer identifier for the note.
+
+    Returns:
+        ``(surface, component, suite_id, note)`` for :func:`build_report`.
+    """
+    suite_id = negotiated_suite or DEFAULT_CONVERSATION_SUITE
+    if kind == "envelope":
+        surface = "envelope-payload"
+        component = "skcomms (EnvelopeCrypto)"
+    else:
+        surface = "dm"
+        component = "skchat (ChatCrypto)"
+    resolved = _resolve_suite(suite_id)
+    who = f" with {peer}" if peer else ""
+    if resolved["quantum_resistant"]:
+        note = (
+            f"{surface.upper()} conversation{who} negotiated the hybrid KEM: the "
+            "body symmetric key is wrapped via X25519+ML-KEM-768 (PQXDH-style "
+            "signed prekey) and AES-256-GCM seals the body. Negotiated suite is "
+            "bound into the AEAD AAD (downgrade-lock). HNDL-resistant."
+        )
+    else:
+        note = (
+            f"{surface.upper()} conversation{who} on the CLASSICAL PGP key-wrap "
+            "(HNDL-exposed). Either the peer advertised no hybrid prekey or a "
+            "downgrade occurred — recorded honestly. Hybrid engages only when "
+            "both sides advertise a hybrid prekey."
+        )
+    return (surface, component, suite_id, note)
+
+
 #: Suite id used when a group object omits ``kem_suite`` (defensive default).
 DEFAULT_GROUP_NOTE_SUITE = "rsa-pgp-wrap-v1"
 
