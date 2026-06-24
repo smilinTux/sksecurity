@@ -397,15 +397,22 @@ def status(ctx):
     click.echo(f"⚙️ Configuration: {ctx.obj['config']}")
     click.echo(f"🛡️ Auto-quarantine: {'Enabled' if config.get('security.auto_quarantine', True) else 'Disabled'}")
 
-    # PQC crypto posture self-report (PQC Q0 — evidence-backed claims).
-    from .pqc_report import build_report
-    pqc = build_report()
+    # PQC crypto posture self-report — LIVE (reflects the operator's real
+    # groups/stores post confidentiality cut-over; honest mixed state).
+    from .pqc_report import build_live_report
+    pqc = build_live_report()
     sm = pqc["summary"]
     click.echo(
         f"🔐 PQC posture: {sm['quantum_resistant']}/{sm['total_surfaces']} "
         f"quantum-resistant ({sm['classical']} classical, {sm['symmetric']} symmetric) "
         f"— {pqc['phase']}"
     )
+    gb = pqc.get("group_breakdown")
+    if gb and gb["total"]:
+        click.echo(
+            f"   group-key: hybrid-pq for {gb['hybrid']}/{gb['total']} groups "
+            f"({gb['classical']} classical)"
+        )
     click.echo("   Run 'sksecurity pqc-report' for the per-surface breakdown.")
 
     click.echo("\n✅ SKSecurity is operational")
@@ -414,18 +421,23 @@ def status(ctx):
 @cli.command(name="pqc-report")
 @click.option('--format', 'output_format', default='text',
               type=click.Choice(['text', 'json']))
+@click.option('--static', 'static', is_flag=True, default=False,
+              help="Show the model-DEFAULT posture instead of the live fleet state.")
 @click.pass_context
-def pqc_report(ctx, output_format):
+def pqc_report(ctx, output_format, static):
     """Show the per-surface PQC (quantum-resistance) self-report.
 
     Enumerates, per security surface (identity, envelope signature, group key,
-    at-rest), the cipher suite in use TODAY + its quantum-resistance status +
-    FIPS refs. This is the evidence backing any quantum-resistance claim. In
-    Phase 0 (Q0) it reports all asymmetric surfaces as classical (no migration
-    has happened yet).
+    at-rest), the cipher suite in use + its quantum-resistance status + FIPS
+    refs. This is the evidence backing any quantum-resistance claim.
+
+    By default this reflects REALITY: the operator's actual groups + at-rest
+    store post confidentiality cut-over (a surface is hybrid-pq only when truly
+    migrated/negotiated; mixed state is reported honestly). Pass --static for the
+    model-default posture (what NEW objects default to, independent of live data).
     """
-    from .pqc_report import build_report, format_report
-    rpt = build_report()
+    from .pqc_report import build_live_report, build_report, format_report
+    rpt = build_report() if static else build_live_report()
     if output_format == 'json':
         click.echo(json.dumps(rpt, indent=2))
     else:

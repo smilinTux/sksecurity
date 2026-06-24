@@ -395,6 +395,143 @@ def build_report(surfaces: Optional[list[tuple[str, str, str, str]]] = None) -> 
     }
 
 
+# ---------------------------------------------------------------------------
+# Live, reality-reflecting report (PQC confidentiality cut-over).
+# ---------------------------------------------------------------------------
+
+
+def _iter_live_groups():
+    """Yield the operator's live ``GroupChat`` objects (best-effort, may be empty).
+
+    Reads ``~/.skchat/groups/*.json`` through skchat's own loader so the report
+    reflects REALITY (each group's actual ``kem_suite``), never a hard-coded
+    assumption. Returns an empty list if skchat is unavailable.
+    """
+    try:
+        from skchat.daemon_proxy_groups import list_groups  # type: ignore
+
+        return list_groups()
+    except Exception:
+        return []
+
+
+def _live_group_summary() -> dict:
+    """Counts of hybrid-pq vs classical among the operator's live groups."""
+    groups = _iter_live_groups()
+    total = len(groups)
+    hybrid = sum(1 for g in groups if getattr(g, "is_hybrid", False))
+    return {"total": total, "hybrid": hybrid, "classical": total - hybrid}
+
+
+def _live_store_surface() -> Optional[tuple[str, str, str, str]]:
+    """The operator's at-rest store surface, reflecting its real wrap suite.
+
+    Returns ``None`` if no encrypted store exists (so the report falls back to
+    the symmetric baseline line rather than inventing a store).
+    """
+    try:
+        from skchat.encrypted_store import EncryptedChatHistory  # type: ignore
+
+        store = EncryptedChatHistory.from_identity()
+        return atrest_surface_for(store)
+    except Exception:
+        return None
+
+
+def build_live_report() -> dict:
+    """Build the PQC self-report from the operator's LIVE objects (cut-over).
+
+    Unlike :func:`build_report` (which describes the *default* posture for
+    honesty), this enumerates the operator's actual groups and at-rest store and
+    reports the real mixed state:
+
+    * **group-key** surface reflects how many of N groups are hybrid-pq. The
+      surface is marked ``hybrid-pq`` ONLY when *every* group is hybrid; while
+      any group is still classical the surface stays ``classical`` with a
+      ``hybrid-pq for X/N groups`` note — never an overclaim.
+    * **at-rest** reflects the real DEK-wrap suite of the live store (or the
+      symmetric baseline when no store exists).
+    * identity / envelope-sig stay classical (Phase 2, unchanged).
+
+    Adds ``group_breakdown`` counts so callers can render
+    "group-key: hybrid-pq for N/M groups".
+    """
+    gsum = _live_group_summary()
+    surfaces: list[tuple[str, str, str, str]] = []
+
+    # identity + envelope-sig: unchanged classical defaults (Phase 2).
+    surfaces.append(_DEFAULT_SURFACES[0])  # identity
+    surfaces.append(_DEFAULT_SURFACES[1])  # envelope-sig
+
+    # group-key: reflect the real fleet ratio.
+    if gsum["total"] == 0:
+        # No groups yet — describe the NEW-object default honestly (hybrid).
+        surfaces.append((
+            "group-key",
+            "skchat (GroupChat.kem_suite)",
+            "x25519-mlkem768",
+            "No groups exist yet. NEW groups default to hybrid x25519-mlkem768 "
+            "(PQC cut-over); the surface will report hybrid-pq once groups exist "
+            "and are all hybrid.",
+        ))
+    elif gsum["hybrid"] == gsum["total"]:
+        surfaces.append((
+            "group-key",
+            "skchat (GroupChat.kem_suite)",
+            "x25519-mlkem768",
+            f"All {gsum['total']} group(s) on the hybrid epoch-ratchet "
+            "(x25519-mlkem768). HNDL-resistant fleet-wide.",
+        ))
+    else:
+        surfaces.append((
+            "group-key",
+            "skchat (GroupChat.kem_suite)",
+            "rsa-pgp-wrap-v1",
+            f"MIXED: hybrid-pq for {gsum['hybrid']}/{gsum['total']} group(s); "
+            f"{gsum['classical']} still classical (needs hybrid key / not "
+            "migrated). NEW groups default hybrid; migrate the rest via "
+            "`skchat pqc migrate-fleet` once members publish prekeys.",
+        ))
+
+    # at-rest: real store or symmetric baseline.
+    store_surface = _live_store_surface()
+    surfaces.append(store_surface if store_surface is not None else _DEFAULT_SURFACES[3])
+
+    report = build_report(surfaces=surfaces)
+    report["phase"] = (
+        "Confidentiality cut-over — hybrid is the DEFAULT for new objects; "
+        "existing objects migrated where keys are present"
+    )
+    report["group_breakdown"] = gsum
+
+    # Honest claim for the cut-over reality (the default build_report claim
+    # assumes Q0/no-migration, which is now false). State exactly what is true:
+    # confidentiality (KEM/at-rest) is hybrid where migrated; identity/signatures
+    # stay classical (Phase 2). Never claim global hybrid.
+    qr_surfaces = [s for s in report["surfaces"] if s["quantum_resistant"]]
+    g_hybrid = gsum["hybrid"]
+    g_total = gsum["total"]
+    parts = [
+        "Confidentiality cut-over IN PROGRESS (honest mixed state). "
+        "Hybrid X25519+ML-KEM-768 (FIPS 203) is the DEFAULT for NEW groups, "
+        "DMs (negotiated when both peers advertise a prekey), and at-rest DEK "
+        "wrapping."
+    ]
+    if g_total:
+        parts.append(
+            f"group-key: hybrid-pq for {g_hybrid}/{g_total} existing groups "
+            f"({gsum['classical']} still classical — members need a hybrid prekey "
+            "or have not migrated)."
+        )
+    parts.append(
+        "Identity + per-message signatures remain CLASSICAL (Shor-breakable, "
+        "Phase 2 — not HNDL). NOT quantum-resistant end-to-end; never assert "
+        "global, end-to-end, or unconditional post-quantum protection."
+    )
+    report["honest_claim"] = " ".join(parts)
+    return report
+
+
 def format_report(report: Optional[dict] = None) -> str:
     """Render the PQC self-report as human-readable text."""
     rpt = report or build_report()
@@ -423,6 +560,15 @@ def format_report(report: Optional[dict] = None) -> str:
         f"quantum-resistant  ·  {sm['classical']} classical  ·  "
         f"{sm['symmetric']} symmetric"
     )
+    gb = rpt.get("group_breakdown")
+    if gb is not None:
+        if gb["total"] == 0:
+            lines.append("group-key: no groups yet — new groups default hybrid-pq")
+        else:
+            lines.append(
+                f"group-key: hybrid-pq for {gb['hybrid']}/{gb['total']} groups "
+                f"({gb['classical']} classical)"
+            )
     lines.append("")
     lines.append(f"Honest claim: {rpt['honest_claim']}")
     return "\n".join(lines)
