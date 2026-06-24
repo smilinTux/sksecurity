@@ -91,3 +91,69 @@ What shipped:
 **Honest scope — negotiated, web-priority.** Hybrid engages only when both sides advertise a prekey (app published one + Lumina published hers). Classical peers stay byte-for-byte unchanged (negotiated downgrade). The prekey **signature stays classical** (Phase 2 / Q7) — only the KEM is quantum-resistant. **In-browser today:** keygen + seal + open via noble (no native binary needed). **Native-mobile follow-up:** the same `PqDmCodec` runs on liboqs FFI once per-arch liboqs binaries ship — no code change, just the backend. The default `build_report()` stays classical until prekeys are published fleet-wide.
 
 Next milestones: native-mobile liboqs binaries (drop-in for the same codec), fleet prekey publication so the *default* DM line flips hybrid-pq, then Phase 2 (signatures / identity — Q6/Q7).
+
+## 2026-06-24 — Entry #6: Confidentiality CUT-OVER — hybrid is now the DEFAULT for new objects; existing migrated where keys present  🔐🚦
+
+The confidentiality cut-over: hybrid **X25519 + ML-KEM-768** (FIPS 203) is no
+longer opt-in — it is the **DEFAULT for NEW objects** fleet-wide, and existing
+objects are migrated wherever the keys exist. Nothing is forced; classical peers
+and un-keyed objects keep working byte-for-byte.
+
+What changed (defaults flipped):
+- **New groups default hybrid.** `GroupChat.create()` now defaults `kem_suite` to
+  `x25519-mlkem768` (`DEFAULT_NEW_KEM_SUITE`); the create paths
+  (`daemon_proxy_groups.create_group`, MCP `create_group` /
+  `skchat_group_create`, CLI `group create` / `quick-start`) collect each
+  member's hybrid prekey and seed epoch 1 for the members that have one. A new
+  group is hybrid from epoch 1 for keyed members; un-keyed members fall back
+  classically and are flagged (never locked out). `--classical` opts out.
+  **The serialization FIELD default stays `rsa-pgp-wrap-v1`** so groups written
+  before the cut-over still deserialize + report as classical (byte-for-byte).
+- **New DMs negotiate hybrid by default.** skcomms `EnvelopeCrypto` gained a
+  `hybrid_provider` (the shared `~/.skchat/pqc/` prekey store via
+  `skcomms.pq_provider`); `_apply_outbound_crypto` now calls
+  `encrypt_payload_provider` → hybrid when the recipient advertises a prekey,
+  classical otherwise. Inbound `pqdm1:` payloads route to the hybrid opener.
+  (skchat 1:1 DMs + app already negotiated hybrid per Q3/Q5.)
+- **New at-rest stores hybrid-wrap by default** (`EncryptedChatHistory.from_identity`
+  → random DEK sealed X25519+ML-KEM-768 — already the Q4 default; confirmed).
+- **Agents publish prekeys on startup.** `skchat.pq_prekeys` is now agent-aware
+  (keyed by `SKAGENT`; lumina keeps her legacy filenames). The daemon publishes
+  the resident agent's hybrid prekey on boot (`daemon._init_pqc_prekey`), so DMs
+  to it negotiate hybrid by default. capauth's identity layer reports
+  hybrid-capability honestly (`capauth.pqc_confidentiality`).
+
+Live migration on the operator's OWN data (backup taken first):
+- **Backup:** `~/.skchat-pqc-backup/<ts>/` (groups + pqc keystore + at-rest +
+  *.db) — mandatory before any write.
+- **Groups:** 422 total → **4 migrated** to hybrid (the operator's `penguins`
+  groups: epoch 1, all members keyed, each round-trip verified before persist) ·
+  **418 skipped** (member(s) lack a hybrid prekey — left classical, flagged, NOT
+  forced) · 0 failed. Idempotent: a re-run migrates nothing new (the 4 read
+  already-hybrid).
+- **At-rest store:** present (97 msgs), already hybrid-wrapped (`qr=True`); the
+  re-wrap is a verified no-op.
+
+| Surface | Suite | Status |
+|---|---|---|
+| group-key (migrated, all members keyed) | `x25519-mlkem768` | **hybrid-pq** (4/422 groups) |
+| group-key (un-migrated / member needs key) | `rsa-pgp-wrap-v1` | classical (418/422) |
+| dm / envelope (hybrid-negotiated) | `x25519-mlkem768` | **hybrid-pq** |
+| dm / envelope (classical-only / downgraded) | `x25519-pgp-wrap-v1` | classical |
+| at-rest (operator store) | `x25519-mlkem768` | **hybrid-pq** |
+| identity / envelope-sig | `ed25519-v1` | classical (Phase 2) |
+
+**Honest scope.** `sksecurity status` / `pqc-report` now reflect the LIVE fleet
+(`build_live_report()`): the group-key surface reads **"hybrid-pq for 4/422
+groups"** and only shows `hybrid-pq` for the surface when *all* groups are
+hybrid — while any group is classical the surface stays `classical` with the
+mixed-state note. NEW groups/DMs/stores are hybrid by default; the 418 classical
+groups migrate via `skchat pqc migrate-fleet` once their members publish a
+prekey. **What remains classical & why:** (1) groups whose members have no
+published hybrid prekey — peers without a hybrid-capable client (the web/native
+app or a daemon that publishes one) cannot go hybrid yet; (2) identity +
+per-message signatures (Phase 2 — not HNDL, deferrable). No global / end-to-end
+post-quantum claim is made.
+
+Next milestones: fleet prekey publication (so the 418 classical groups become
+migratable), then Phase 2 (signatures / identity — Q6/Q7).

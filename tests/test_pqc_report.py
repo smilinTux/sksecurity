@@ -170,3 +170,66 @@ def test_default_report_atrest_still_symmetric_baseline():
     ar = next(s for s in rpt["surfaces"] if s["surface"] == "at-rest")
     assert ar["active_suite"] == "aes256-gcm-v1"
     assert ar["status"] == "symmetric"
+
+
+# ---------------------------------------------------------------------------
+# Confidentiality cut-over — build_live_report honesty (Entry #6).
+# ---------------------------------------------------------------------------
+
+from sksecurity.pqc_report import build_live_report  # noqa: E402
+
+
+def test_live_report_has_group_breakdown_and_does_not_overclaim(monkeypatch):
+    """Live report carries a real group_breakdown and never overclaims."""
+    rpt = build_live_report()
+    assert "group_breakdown" in rpt
+    gb = rpt["group_breakdown"]
+    assert set(gb) == {"total", "hybrid", "classical"}
+    assert gb["hybrid"] + gb["classical"] == gb["total"]
+    claim = rpt["honest_claim"].lower()
+    assert "quantum-proof" not in claim
+    assert "unbreakable" not in claim
+    # identity must never be reported quantum-resistant by the cut-over report.
+    ident = next(s for s in rpt["surfaces"] if s["surface"] == "identity")
+    assert ident["quantum_resistant"] is False
+
+
+def test_live_report_group_surface_honest_about_mixed_state(monkeypatch):
+    """When some groups are classical, the group-key surface stays classical
+    with a mixed-state note — never falsely hybrid-pq."""
+    import sksecurity.pqc_report as P
+
+    class _G:
+        def __init__(self, hybrid):
+            self.id = "x" * 8
+            self.kem_suite = "x25519-mlkem768" if hybrid else "rsa-pgp-wrap-v1"
+            self.epoch = 1 if hybrid else 0
+            self.is_hybrid = hybrid
+
+    # 1 hybrid + 1 classical → surface must NOT claim hybrid-pq globally.
+    monkeypatch.setattr(P, "_iter_live_groups", lambda: [_G(True), _G(False)])
+    monkeypatch.setattr(P, "_live_store_surface", lambda: None)
+    rpt = P.build_live_report()
+    gk = next(s for s in rpt["surfaces"] if s["surface"] == "group-key")
+    assert gk["status"] == "classical"
+    assert "1/2" in gk["note"] or "hybrid-pq for 1" in gk["note"]
+    assert rpt["group_breakdown"] == {"total": 2, "hybrid": 1, "classical": 0 + 1}
+
+
+def test_live_report_all_hybrid_groups_report_hybrid(monkeypatch):
+    """When EVERY group is hybrid, the surface honestly reads hybrid-pq."""
+    import sksecurity.pqc_report as P
+
+    class _G:
+        def __init__(self):
+            self.id = "y" * 8
+            self.kem_suite = "x25519-mlkem768"
+            self.epoch = 1
+            self.is_hybrid = True
+
+    monkeypatch.setattr(P, "_iter_live_groups", lambda: [_G(), _G()])
+    monkeypatch.setattr(P, "_live_store_surface", lambda: None)
+    rpt = P.build_live_report()
+    gk = next(s for s in rpt["surfaces"] if s["surface"] == "group-key")
+    assert gk["status"] == "hybrid-pq"
+    assert gk["quantum_resistant"] is True
