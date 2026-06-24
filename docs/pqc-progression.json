@@ -206,6 +206,22 @@
         "symmetric": 1,
         "note": "PQC signing backend available; LIVE root identity remains CLASSICAL until the gated rotation ceremony"
       }
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 10,
+      "phase": "Phase 2 / Q6 — PQC root identity backend proven end-to-end (capauth)",
+      "label": "PQC root works end-to-end through capauth (backend + v6 fingerprint reconciliation + ceremony validated) — live root still classical",
+      "note": "Sequoia backend extended (protected-key signing + add_pqc_subkeys, reversible). capauth broadened ~36 sites to accept v6 64-hex fingerprints (resolver/service/OIDC/authentik+migration/Nextcloud-PHP/JS) — additive, 40-hex unchanged. PQC root proven end-to-end through capauth: sovereign profile create + challenge sign/verify (incl. protected key); DID generation made honest for PQC (no false kty:RSA). Rotation+cross-sign ceremony validated on THROWAWAY keys (scripts/pqc_ceremony_dryrun.py, sq pki vouch add). LIVE root (02BC0EB3...9746) STILL CLASSICAL + v4 — rotation ceremony gated on Chef; PHP/JS/DB-migration not deployed. Pre-RFC draft-ietf-openpgp-pqc-17.",
+      "status_counts": {
+        "classical": 1,
+        "symmetric": 1,
+        "hybrid-pq": 1,
+        "hybrid-pq-available": 1,
+        "backend-proven": 1,
+        "mixed": 1
+      }
     }
   ]
 }

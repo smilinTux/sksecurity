@@ -328,3 +328,39 @@ Next milestones: resolve protected-key signing for `sq` (no `--password` flag �
 keystore path), then the gated **root-key rotation ceremony** itself (issue the
 ML-DSA-87 + Ed448 root with Chef's real key + the root-rotation ceremony) — the
 one step that finally flips the LIVE identity-root line off classical.
+
+## 2026-06-24 — Entry #10: PQC root proven end-to-end through capauth  🔑 *(Phase 2 / Q6)*
+
+The PQC root is no longer just a backend — it works through the **whole capauth
+stack**, and the rotation ceremony is **validated on throwaway keys**. Still
+**additive, reversible, and gated**: the LIVE root
+(`02BC0EB3CAD31DB691A753C70C5629AB893F9746`) remains **classical and v4** — none
+of this migrates it.
+
+What shipped:
+- **Sequoia backend extended** — protected-key signing (`sq --password-file …
+  --batch`; no unprotected key on disk) + `add_pqc_subkeys()` (attach
+  ML-DSA-87+Ed448 sign + ML-KEM-1024+X448 enc subkeys to an existing **v6** key,
+  primary fingerprint preserved, reversible).
+- **v6 fingerprint reconciliation** — ~36 sites across the capauth resolver,
+  service/OIDC gates, authentik (+ a non-destructive DB migration, not applied),
+  Nextcloud PHP, and JS/Vue/TS frontends broadened to accept **64-hex** (v6)
+  alongside 40-hex (v4). Additive — a 40-hex fingerprint passes exactly as before.
+- **End-to-end proof** — a PQC sovereign profile is created + self-signed, and a
+  challenge round-trips (sign/verify), **including the passphrase-protected path**,
+  all through `init_profile` + `identity` with the Sequoia backend.
+- **DID honesty** — v6/PQC roots no longer mislabel themselves `kty:"RSA"`; the
+  fallback names the real algorithm (JOSE PQC `kty:"AKP"`) and points verifiers at
+  the OpenPGP armored key.
+- **Ceremony validated** — `scripts/pqc_ceremony_dryrun.py` proves
+  generate→rotate→**cross-sign both directions** (`sq pki vouch add` +
+  `pki authenticate`)→continuity→additive-subkey on disposable keys (all PASS,
+  isolated `SEQUOIA_HOME`); runbook corrected to match.
+
+**Honest scope.** Backend + integration capability only. The **live root is still
+classical**; the rotation ceremony (and the v4→v6 re-issue it requires — `sq`
+refuses PQC algorithms on v4 keys) is the gated, Chef-driven event. PHP/JS and the
+authentik DB migration are committed but **not deployed**. The one open live-run
+item is the passphrase-keystore path for the protected live key. No global /
+end-to-end / "quantum-proof" claim. Standards: FIPS 203/204/205, RFC 8032/9580,
+draft-ietf-openpgp-pqc-17.
