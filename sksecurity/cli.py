@@ -396,8 +396,40 @@ def status(ctx):
     # Configuration
     click.echo(f"⚙️ Configuration: {ctx.obj['config']}")
     click.echo(f"🛡️ Auto-quarantine: {'Enabled' if config.get('security.auto_quarantine', True) else 'Disabled'}")
-    
+
+    # PQC crypto posture self-report (PQC Q0 — evidence-backed claims).
+    from .pqc_report import build_report
+    pqc = build_report()
+    sm = pqc["summary"]
+    click.echo(
+        f"🔐 PQC posture: {sm['quantum_resistant']}/{sm['total_surfaces']} "
+        f"quantum-resistant ({sm['classical']} classical, {sm['symmetric']} symmetric) "
+        f"— {pqc['phase']}"
+    )
+    click.echo("   Run 'sksecurity pqc-report' for the per-surface breakdown.")
+
     click.echo("\n✅ SKSecurity is operational")
+
+
+@cli.command(name="pqc-report")
+@click.option('--format', 'output_format', default='text',
+              type=click.Choice(['text', 'json']))
+@click.pass_context
+def pqc_report(ctx, output_format):
+    """Show the per-surface PQC (quantum-resistance) self-report.
+
+    Enumerates, per security surface (identity, envelope signature, group key,
+    at-rest), the cipher suite in use TODAY + its quantum-resistance status +
+    FIPS refs. This is the evidence backing any quantum-resistance claim. In
+    Phase 0 (Q0) it reports all asymmetric surfaces as classical (no migration
+    has happened yet).
+    """
+    from .pqc_report import build_report, format_report
+    rpt = build_report()
+    if output_format == 'json':
+        click.echo(json.dumps(rpt, indent=2))
+    else:
+        click.echo(format_report(rpt))
 
 @cli.command()
 @click.argument('content', required=False)
