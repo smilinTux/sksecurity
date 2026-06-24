@@ -13,7 +13,7 @@
       "date": "2026-06-23",
       "kind": "milestone",
       "entry": 1,
-      "label": "PRE-PQC BASELINE (Q0 \u2014 crypto-agility scaffolding, no migration)",
+      "label": "PRE-PQC BASELINE (Q0 — crypto-agility scaffolding, no migration)",
       "surfaces": [
         {
           "surface": "identity",
@@ -51,7 +51,7 @@
       "date": "2026-06-24",
       "kind": "milestone",
       "entry": 2,
-      "label": "Q2 group-key \u2192 hybrid epoch-ratchet AVAILABLE (per-group / opt-in)",
+      "label": "Q2 group-key → hybrid epoch-ratchet AVAILABLE (per-group / opt-in)",
       "note": "Hybrid ratchet live per-group (kem_suite==x25519-mlkem768); default surface stays classical until groups migrate.",
       "status_counts": {
         "classical": 3,
@@ -63,7 +63,7 @@
       "date": "2026-06-24",
       "kind": "milestone",
       "entry": 3,
-      "label": "Q3 DM/envelope \u2192 hybrid KEM AVAILABLE (per-conversation / negotiated)",
+      "label": "Q3 DM/envelope → hybrid KEM AVAILABLE (per-conversation / negotiated)",
       "note": "pqdm.py shared sealing primitive; hybrid engages only when both peers advertise a prekey; downgrade-locked via AAD.",
       "status_counts": {
         "classical": 3,
@@ -75,7 +75,7 @@
       "date": "2026-06-24",
       "kind": "milestone",
       "entry": 4,
-      "label": "Q4 at-rest \u2192 hybrid key-wrap AVAILABLE + fingerprint-keying bug FIXED",
+      "label": "Q4 at-rest → hybrid key-wrap AVAILABLE + fingerprint-keying bug FIXED",
       "note": "Random DEK sealed X25519+ML-KEM-768; legacy fingerprint-derived DEK retired; Phase-1 HNDL surfaces all have a hybrid path.",
       "status_counts": {
         "classical": 2,
@@ -87,8 +87,8 @@
       "date": "2026-06-24",
       "kind": "milestone",
       "entry": 5,
-      "label": "Q5 app-side hybrid PQC LIVE \u2014 DMs go hybrid in the BROWSER",
-      "note": "Flutter PqDmCodec + noble web ML-KEM-768; app\u2194Lumina DMs negotiate hybrid in-page; interop gate passed both directions.",
+      "label": "Q5 app-side hybrid PQC LIVE — DMs go hybrid in the BROWSER",
+      "note": "Flutter PqDmCodec + noble web ML-KEM-768; app↔Lumina DMs negotiate hybrid in-page; interop gate passed both directions.",
       "status_counts": {
         "classical": 2,
         "symmetric": 1,
@@ -99,8 +99,8 @@
       "date": "2026-06-24",
       "kind": "milestone",
       "entry": 6,
-      "label": "Confidentiality CUT-OVER \u2014 hybrid is the DEFAULT for new objects",
-      "note": "New groups/DMs/stores default hybrid; live migration: 4/422 groups hybrid (418 classical \u2014 members need prekeys); at-rest store hybrid. identity/sig stay classical (Phase 2).",
+      "label": "Confidentiality CUT-OVER — hybrid is the DEFAULT for new objects",
+      "note": "New groups/DMs/stores default hybrid; live migration: 4/422 groups hybrid (418 classical — members need prekeys); at-rest store hybrid. identity/sig stay classical (Phase 2).",
       "status_counts": {
         "classical": 1,
         "symmetric": 1,
@@ -114,7 +114,7 @@
       }
     },
     {
-      "phase": "Confidentiality cut-over \u2014 hybrid is the DEFAULT for new objects; existing objects migrated where keys are present",
+      "phase": "Confidentiality cut-over — hybrid is the DEFAULT for new objects; existing objects migrated where keys are present",
       "registry_source": "skcomms.crypto_suites (live)",
       "summary": {
         "total_surfaces": 4,
@@ -161,6 +161,28 @@
       "timestamp": "2026-06-24T11:29:23.074422+00:00",
       "label": "df239fe1 verification snapshot",
       "kind": "live"
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 8,
+      "phase": "Phase 2 / Q7 — per-message + DID/challenge signatures",
+      "label": "Q7 signatures → hybrid Ed25519+ML-DSA-65 AVAILABLE (opt-in/negotiated)",
+      "note": "skcomms.pqsig (FIPS 204 ML-DSA-65 + RFC 8032 Ed25519 composite, both legs required) wired opt-in into SignedEnvelope.sig_suite (HybridEnvelopeSigner) + capauth.pqc_identity challenge (respond/verify_challenge_hybrid). Either-or verify; classical ed25519-v1 stays default for old peers (byte-for-byte unchanged). ML-DSA signer key is per-signer, SEPARATE from the PGP root. ROOT PGP identity key still CLASSICAL — Sequoia migration gated/separate.",
+      "status_counts": {
+        "classical": 1,
+        "symmetric": 1,
+        "hybrid-pq": 1,
+        "hybrid-pq-available": 1,
+        "mixed": 1
+      },
+      "summary": {
+        "total_surfaces": 4,
+        "quantum_resistant": 1,
+        "classical": 3,
+        "symmetric": 1,
+        "note": "signatures hybrid-pq AVAILABLE opt-in; default + root identity remain classical"
+      }
     }
   ]
 }
