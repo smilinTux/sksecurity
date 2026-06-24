@@ -233,3 +233,199 @@ def test_live_report_all_hybrid_groups_report_hybrid(monkeypatch):
     gk = next(s for s in rpt["surfaces"] if s["surface"] == "group-key")
     assert gk["status"] == "hybrid-pq"
     assert gk["quantum_resistant"] is True
+
+
+# ---------------------------------------------------------------------------
+# df239fe1 — per-project reports
+# ---------------------------------------------------------------------------
+
+from sksecurity.pqc_report import (  # noqa: E402
+    build_project_report, known_projects, PROJECT_SURFACES,
+)
+
+
+def test_known_projects_are_the_expected_set():
+    assert set(known_projects()) == {"skchat", "skcomms", "capauth", "sksecurity"}
+
+
+def test_project_report_only_emits_owned_surfaces():
+    """capauth owns identity only; skcomms owns envelope-sig (+ payload)."""
+    cap = build_project_report("capauth", live=False)
+    assert {s["surface"] for s in cap["surfaces"]} == {"identity"}
+    assert cap["project"] == "capauth"
+    # static (non-live) skcomms = envelope-sig only (payload added only when live)
+    comm = build_project_report("skcomms", live=False)
+    assert "envelope-sig" in {s["surface"] for s in comm["surfaces"]}
+
+
+def test_capauth_identity_never_quantum_resistant():
+    cap = build_project_report("capauth", live=True)
+    ident = next(s for s in cap["surfaces"] if s["surface"] == "identity")
+    assert ident["quantum_resistant"] is False
+    assert ident["status"] == "classical"
+
+
+def test_project_report_honest_claim_not_global():
+    for proj in known_projects():
+        rpt = build_project_report(proj, live=True)
+        claim = rpt["honest_claim"].lower()
+        for forbidden in ("quantum-proof", "unbreakable", "quantum-safe",
+                          "end-to-end quantum"):
+            assert forbidden not in claim, (proj, forbidden)
+
+
+def test_project_report_summary_consistent():
+    for proj in known_projects():
+        rpt = build_project_report(proj, live=True)
+        sm = rpt["summary"]
+        assert sm["total_surfaces"] == len(rpt["surfaces"])
+        qr = sum(1 for s in rpt["surfaces"] if s["quantum_resistant"])
+        assert sm["quantum_resistant"] == qr
+
+
+def test_unknown_project_raises():
+    import pytest
+    with pytest.raises(ValueError):
+        build_project_report("nope")
+
+
+# ---------------------------------------------------------------------------
+# df239fe1 — JSON ledger + snapshot
+# ---------------------------------------------------------------------------
+
+import json as _json  # noqa: E402
+from sksecurity.pqc_report import (  # noqa: E402
+    append_snapshot, load_ledger, seed_ledger, _snapshot_from_report,
+    build_live_report,
+)
+
+
+def test_snapshot_from_report_has_status_counts():
+    snap = _snapshot_from_report(build_live_report())
+    assert "status_counts" in snap
+    assert "summary" in snap
+    assert isinstance(snap["surfaces"], list)
+
+
+def test_append_snapshot_writes_dated_entry(tmp_path, monkeypatch):
+    import sksecurity.pqc_report as P
+    ledger_path = tmp_path / "pqc-progression.json"
+    monkeypatch.setattr(P, "LEDGER_JSON", ledger_path)
+    snap = P.append_snapshot(label="unit-test")
+    assert ledger_path.exists()
+    data = _json.loads(ledger_path.read_text())
+    assert data["snapshots"][-1]["label"] == "unit-test"
+    assert "date" in snap and "status_counts" in snap
+
+
+def test_seed_ledger_idempotent(tmp_path, monkeypatch):
+    import sksecurity.pqc_report as P
+    ledger_path = tmp_path / "pqc-progression.json"
+    monkeypatch.setattr(P, "LEDGER_JSON", ledger_path)
+    P.seed_ledger()
+    n1 = len(_json.loads(ledger_path.read_text())["snapshots"])
+    P.seed_ledger()  # idempotent: no duplicate seeds
+    n2 = len(_json.loads(ledger_path.read_text())["snapshots"])
+    assert n1 == n2 == 6
+    # entries 1..6 present
+    entries = [s.get("entry") for s in _json.loads(ledger_path.read_text())["snapshots"]]
+    assert entries == [1, 2, 3, 4, 5, 6]
+
+
+# ---------------------------------------------------------------------------
+# df239fe1 — SKStacks per-service report
+# ---------------------------------------------------------------------------
+
+from sksecurity.pqc_stacks import (  # noqa: E402
+    _classify, _parse_services, build_stacks_report, format_stacks_report,
+)
+
+
+def test_parse_services_extracts_names_and_images():
+    text = (
+        "services:\n"
+        "  web:\n"
+        "    image: nginx:latest\n"
+        "    labels:\n"
+        "      traefik.http.routers.x.tls: \"true\"\n"
+        "  db:\n"
+        "    image: postgres:16-alpine\n"
+        "volumes:\n"
+        "  data:\n"
+    )
+    svc = _parse_services(text)
+    names = {s["service"] for s in svc}
+    assert names == {"web", "db"}
+    web = next(s for s in svc if s["service"] == "web")
+    assert web["tls"] is True
+    db = next(s for s in svc if s["service"] == "db")
+    assert "postgres" in db["image"]
+
+
+def test_classify_unknown_is_unaudited_not_assumed_secure():
+    row = _classify({"service": "mystery", "image": "weird/thing:1", "tls": False})
+    assert row["posture"] == "unaudited"
+    assert row["quantum_resistant"] is False
+
+
+def test_classify_postgres_is_classical_no_pqc():
+    row = _classify({"service": "postgres", "image": "postgres:16-alpine", "tls": False})
+    assert row["posture"] == "classical"
+    assert row["quantum_resistant"] is False
+
+
+def test_no_stack_service_is_quantum_resistant():
+    """Honesty: no SKStacks service may report quantum-resistant today."""
+    try:
+        rpt = build_stacks_report()
+    except FileNotFoundError:
+        import pytest
+        pytest.skip("SKStacks descriptors not present in this environment")
+    assert rpt["summary"]["hybrid-pq"] == 0
+    for s in rpt["services"]:
+        assert s["quantum_resistant"] is False
+    claim = rpt["honest_claim"].lower()
+    assert "none is quantum-resistant" in claim
+    assert "quantum-proof" not in claim
+    text = format_stacks_report(rpt)
+    assert "Per-Service" in text
+
+
+# ---------------------------------------------------------------------------
+# df239fe1 — dashboard
+# ---------------------------------------------------------------------------
+
+from sksecurity.pqc_report import build_dashboard, format_dashboard  # noqa: E402
+
+
+def test_dashboard_assembles_all_sections():
+    dash = build_dashboard(live=True, include_stacks=True)
+    assert "aggregate" in dash
+    assert set(dash["projects"]) == set(known_projects())
+    assert "stacks" in dash
+    assert "trend" in dash
+    text = format_dashboard(dash)
+    assert "PQC DASHBOARD" in text
+    assert "PER-PROJECT" in text
+    assert "PER-SERVICE" in text
+    assert "TREND" in text
+    # ecosystem honest claim present + not overclaiming
+    low = text.lower()
+    assert "not quantum-resistant end-to-end" in low
+    assert "quantum-proof" not in low
+
+
+def test_dashboard_handles_missing_stacks_gracefully(monkeypatch):
+    import sksecurity.pqc_report as P
+    # Force the stacks import to fail → unavailable marker, no fabrication.
+    import builtins
+    real_import = builtins.__import__
+
+    def fake_import(name, *a, **k):
+        if name == "sksecurity.pqc_stacks" or name.endswith("pqc_stacks"):
+            raise ImportError("simulated missing stacks")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    dash = P.build_dashboard(include_stacks=True)
+    assert dash["stacks"].get("unavailable") is True

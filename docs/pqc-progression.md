@@ -157,3 +157,28 @@ post-quantum claim is made.
 
 Next milestones: fleet prekey publication (so the 418 classical groups become
 migratable), then Phase 2 (signatures / identity — Q6/Q7).
+
+## 2026-06-24 — Entry #7: Per-project + per-service reporting + a self-growing JSON ledger  📊 *(observability, df239fe1)*
+
+The reporting layer of the #2 cut-over: the aggregate honest self-report now has **per-project**, **per-service**, and **historical-trend** companions, plus a one-command dashboard. No new crypto — this is the *visibility* over what already shipped (Entries #1-6), holding the same honest-claim discipline (FIPS 203/204/205, classical-vs-hybrid per surface, never global/E2E/"quantum-proof").
+
+What shipped:
+- **Per-project reports.** `sksecurity/pqc_report.py` gained `build_project_report(project, live=)` + a `--project` filter on `sksecurity pqc-report`, plus thin `pqc-report` subcommands in **skchat / skcomms / capauth** that delegate to the same honesty engine. Each project sees ONLY its owned surfaces (capauth→identity; skcomms→envelope-sig + envelope-payload; skchat→group-key + dm + at-rest; sksecurity→at-rest). A developer in any repo can ask "what's MY project's PQC posture?" The confidentiality surfaces (dm/envelope-payload) reflect the LIVE published default (hybrid-negotiable iff the resident agent advertises a hybrid prekey) — never a per-peer guarantee.
+- **SKStacks per-service itemization.** New `sksecurity/pqc_stacks.py` + `sksecurity pqc-stacks` parse the SKStacks v2 descriptors (`apps/*/stack/*.yml`, `overlays/`) and itemize EACH service with its honest posture (transport / at-rest / identity). Today every service transport is **classical TLS** (Traefik ECDHE/RSA/ECDSA — Shor-breakable) or has no crypto surface; **no stack service is quantum-resistant**. Unknown services are flagged **`unaudited`** (explicitly UNKNOWN — never assumed-secure), not `classical`/`n/a`.
+- **Self-growing JSON ledger.** `docs/pqc-progression.json` is the machine-readable companion to this narrative .md — seeded with the key facts of Entries #1-6, then **append-only** via `sksecurity pqc-snapshot`, which records a DATED per-surface + per-group snapshot of the live posture. The trend (how many surfaces/groups flipped over time) is now reconstructable from data, not just hand-typed entries.
+- **Dashboard.** `sksecurity pqc-dashboard` is one view of the whole ecosystem: aggregate + per-project + per-service + the trend (read from the JSON). One command to see the entire quantum-resistance posture.
+
+### Current posture (unchanged from Entry #6 — this is reporting, not migration)
+
+| Surface | Suite | Status |
+|---|---|---|
+| identity / envelope-sig | `ed25519-v1` | classical (Phase 2) |
+| group-key (migrated, all members keyed) | `x25519-mlkem768` | **hybrid-pq** (live count via snapshot) |
+| group-key (un-migrated) | `rsa-pgp-wrap-v1` | classical |
+| dm / envelope (hybrid-negotiated) | `x25519-mlkem768` | **hybrid-pq** |
+| at-rest (operator store) | `x25519-mlkem768` | **hybrid-pq** |
+| SKStacks services (transport) | classical TLS / unaudited | classical · symmetric · n/a · unaudited |
+
+**Honest scope.** The per-project/per-service/dashboard views are *visibility*, not new protection. They cannot mark a surface quantum-resistant unless its live suite already is. SKStacks services are honestly classical/symmetric/n/a with unknowns flagged `unaudited`; PQC has not reached the stack-transport layer (no PQC TLS / hybrid KEX in Traefik). No global / end-to-end / post-quantum claim is made.
+
+Next milestones: fleet prekey publication (so the 418 classical groups become migratable), then Phase 2 (signatures / identity — Q6/Q7). The JSON ledger will record each flip automatically as `pqc-snapshot` runs.

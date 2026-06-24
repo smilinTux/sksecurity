@@ -423,8 +423,11 @@ def status(ctx):
               type=click.Choice(['text', 'json']))
 @click.option('--static', 'static', is_flag=True, default=False,
               help="Show the model-DEFAULT posture instead of the live fleet state.")
+@click.option('--project', 'project', default=None,
+              help="Scope the report to ONE project's owned surfaces "
+                   "(skchat / skcomms / capauth / sksecurity).")
 @click.pass_context
-def pqc_report(ctx, output_format, static):
+def pqc_report(ctx, output_format, static, project):
     """Show the per-surface PQC (quantum-resistance) self-report.
 
     Enumerates, per security surface (identity, envelope signature, group key,
@@ -435,13 +438,110 @@ def pqc_report(ctx, output_format, static):
     store post confidentiality cut-over (a surface is hybrid-pq only when truly
     migrated/negotiated; mixed state is reported honestly). Pass --static for the
     model-default posture (what NEW objects default to, independent of live data).
+
+    Pass --project skchat|skcomms|capauth|sksecurity to scope the report to a
+    single project's owned surfaces ("what is MY project's PQC posture?").
     """
-    from .pqc_report import build_live_report, build_report, format_report
+    from .pqc_report import (
+        build_live_report, build_report, format_report,
+        build_project_report, format_project_report, known_projects,
+    )
+    if project:
+        proj = project.lower()
+        if proj not in known_projects():
+            raise click.BadParameter(
+                f"unknown project {project!r}; known: {', '.join(known_projects())}"
+            )
+        rpt = build_project_report(proj, live=not static)
+        if output_format == 'json':
+            click.echo(json.dumps(rpt, indent=2))
+        else:
+            click.echo(format_project_report(rpt))
+        return
     rpt = build_report() if static else build_live_report()
     if output_format == 'json':
         click.echo(json.dumps(rpt, indent=2))
     else:
         click.echo(format_report(rpt))
+
+
+@cli.command(name="pqc-stacks")
+@click.option('--format', 'output_format', default='text',
+              type=click.Choice(['text', 'json']))
+@click.pass_context
+def pqc_stacks(ctx, output_format):
+    """Itemize EACH SKStacks v2 service with its honest crypto posture.
+
+    Lists every service/component declared in the SKStacks v2 descriptors
+    (transport TLS / at-rest / identity), marking classical / symmetric / n/a
+    plainly and UNKNOWN services as 'unaudited' (never assumed-secure). No
+    stack service is quantum-resistant (transport is classical TLS).
+    """
+    from .pqc_stacks import build_stacks_report, format_stacks_report
+    try:
+        rpt = build_stacks_report()
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc))
+    if output_format == 'json':
+        click.echo(json.dumps(rpt, indent=2))
+    else:
+        click.echo(format_stacks_report(rpt))
+
+
+@cli.command(name="pqc-snapshot")
+@click.option('--label', default='', help="Human label for this snapshot.")
+@click.option('--static', 'static', is_flag=True, default=False,
+              help="Snapshot the model-DEFAULT posture instead of the live fleet.")
+@click.option('--seed', is_flag=True, default=False,
+              help="Seed the JSON ledger with the #1-6 milestone history first "
+                   "(idempotent).")
+@click.option('--format', 'output_format', default='text',
+              type=click.Choice(['text', 'json']))
+@click.pass_context
+def pqc_snapshot(ctx, label, static, seed, output_format):
+    """Append a DATED snapshot of the current PQC posture to the JSON ledger.
+
+    Writes docs/pqc-progression.json (the machine-readable companion to the
+    narrative .md): per-surface + per-group counts at this moment, so the
+    historical current-vs-enabled trend is reconstructable from data over time.
+    """
+    from .pqc_report import append_snapshot, seed_ledger, LEDGER_JSON
+    if seed:
+        seed_ledger()
+    snap = append_snapshot(label=label, live=not static)
+    if output_format == 'json':
+        click.echo(json.dumps(snap, indent=2))
+    else:
+        click.echo(f"📌 Appended PQC snapshot {snap['date']} → {LEDGER_JSON}")
+        sc = snap.get("status_counts", {})
+        click.echo("   status_counts: " + ", ".join(
+            f"{k}={v}" for k, v in sorted(sc.items())))
+        gb = snap.get("group_breakdown")
+        if gb and gb.get("total"):
+            click.echo(f"   group-key: {gb['hybrid']}/{gb['total']} hybrid")
+
+
+@cli.command(name="pqc-dashboard")
+@click.option('--format', 'output_format', default='text',
+              type=click.Choice(['text', 'json']))
+@click.option('--static', 'static', is_flag=True, default=False,
+              help="Use the model-DEFAULT posture instead of the live fleet.")
+@click.option('--no-stacks', is_flag=True, default=False,
+              help="Skip the SKStacks per-service section.")
+@click.pass_context
+def pqc_dashboard(ctx, output_format, static, no_stacks):
+    """One view of the WHOLE ecosystem's quantum-resistance posture.
+
+    Aggregate + per-project + per-service (SKStacks) + the historical trend
+    (read from docs/pqc-progression.json). The single command to see how many
+    surfaces/services/groups are classical vs hybrid-pq and how that has moved.
+    """
+    from .pqc_report import build_dashboard, format_dashboard
+    dash = build_dashboard(live=not static, include_stacks=not no_stacks)
+    if output_format == 'json':
+        click.echo(json.dumps(dash, indent=2))
+    else:
+        click.echo(format_dashboard(dash))
 
 @cli.command()
 @click.argument('content', required=False)

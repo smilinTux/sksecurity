@@ -1,0 +1,166 @@
+{
+  "ledger": "pqc-progression",
+  "epic": "PQC-MIGRATION (coord e1d6ba2a)",
+  "note": "Machine-readable companion to docs/pqc-progression.md. Append-only dated snapshots of the LIVE posture (sksecurity pqc-snapshot). The .md is the narrative; this is the data.",
+  "legend": {
+    "classical": "Shor-breakable (vulnerable)",
+    "symmetric": "AES-256/SHA-2 (quantum-acceptable, Grover-only)",
+    "hybrid-pq": "X25519+ML-KEM-768 (FIPS 203, target)",
+    "pq": "pure post-quantum"
+  },
+  "snapshots": [
+    {
+      "date": "2026-06-23",
+      "kind": "milestone",
+      "entry": 1,
+      "label": "PRE-PQC BASELINE (Q0 \u2014 crypto-agility scaffolding, no migration)",
+      "surfaces": [
+        {
+          "surface": "identity",
+          "active_suite": "ed25519-v1",
+          "status": "classical"
+        },
+        {
+          "surface": "envelope-sig",
+          "active_suite": "ed25519-v1",
+          "status": "classical"
+        },
+        {
+          "surface": "group-key",
+          "active_suite": "rsa-pgp-wrap-v1",
+          "status": "classical"
+        },
+        {
+          "surface": "at-rest",
+          "active_suite": "aes256-gcm-v1",
+          "status": "symmetric"
+        }
+      ],
+      "status_counts": {
+        "classical": 3,
+        "symmetric": 1
+      },
+      "summary": {
+        "total_surfaces": 4,
+        "quantum_resistant": 1,
+        "classical": 3,
+        "symmetric": 1
+      }
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 2,
+      "label": "Q2 group-key \u2192 hybrid epoch-ratchet AVAILABLE (per-group / opt-in)",
+      "note": "Hybrid ratchet live per-group (kem_suite==x25519-mlkem768); default surface stays classical until groups migrate.",
+      "status_counts": {
+        "classical": 3,
+        "symmetric": 1,
+        "hybrid-pq-available": 1
+      }
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 3,
+      "label": "Q3 DM/envelope \u2192 hybrid KEM AVAILABLE (per-conversation / negotiated)",
+      "note": "pqdm.py shared sealing primitive; hybrid engages only when both peers advertise a prekey; downgrade-locked via AAD.",
+      "status_counts": {
+        "classical": 3,
+        "symmetric": 1,
+        "hybrid-pq-available": 2
+      }
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 4,
+      "label": "Q4 at-rest \u2192 hybrid key-wrap AVAILABLE + fingerprint-keying bug FIXED",
+      "note": "Random DEK sealed X25519+ML-KEM-768; legacy fingerprint-derived DEK retired; Phase-1 HNDL surfaces all have a hybrid path.",
+      "status_counts": {
+        "classical": 2,
+        "symmetric": 1,
+        "hybrid-pq-available": 3
+      }
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 5,
+      "label": "Q5 app-side hybrid PQC LIVE \u2014 DMs go hybrid in the BROWSER",
+      "note": "Flutter PqDmCodec + noble web ML-KEM-768; app\u2194Lumina DMs negotiate hybrid in-page; interop gate passed both directions.",
+      "status_counts": {
+        "classical": 2,
+        "symmetric": 1,
+        "hybrid-pq-available": 3
+      }
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 6,
+      "label": "Confidentiality CUT-OVER \u2014 hybrid is the DEFAULT for new objects",
+      "note": "New groups/DMs/stores default hybrid; live migration: 4/422 groups hybrid (418 classical \u2014 members need prekeys); at-rest store hybrid. identity/sig stay classical (Phase 2).",
+      "status_counts": {
+        "classical": 1,
+        "symmetric": 1,
+        "hybrid-pq": 1,
+        "mixed": 1
+      },
+      "group_breakdown": {
+        "total": 422,
+        "hybrid": 4,
+        "classical": 418
+      }
+    },
+    {
+      "phase": "Confidentiality cut-over \u2014 hybrid is the DEFAULT for new objects; existing objects migrated where keys are present",
+      "registry_source": "skcomms.crypto_suites (live)",
+      "summary": {
+        "total_surfaces": 4,
+        "quantum_resistant": 1,
+        "classical": 3,
+        "symmetric": 0
+      },
+      "status_counts": {
+        "classical": 3,
+        "hybrid-pq": 1
+      },
+      "surfaces": [
+        {
+          "surface": "identity",
+          "active_suite": "ed25519-v1",
+          "status": "classical",
+          "quantum_resistant": false
+        },
+        {
+          "surface": "envelope-sig",
+          "active_suite": "ed25519-v1",
+          "status": "classical",
+          "quantum_resistant": false
+        },
+        {
+          "surface": "group-key",
+          "active_suite": "rsa-pgp-wrap-v1",
+          "status": "classical",
+          "quantum_resistant": false
+        },
+        {
+          "surface": "at-rest",
+          "active_suite": "x25519-mlkem768",
+          "status": "hybrid-pq",
+          "quantum_resistant": true
+        }
+      ],
+      "group_breakdown": {
+        "total": 423,
+        "hybrid": 5,
+        "classical": 418
+      },
+      "date": "2026-06-24",
+      "timestamp": "2026-06-24T11:29:23.074422+00:00",
+      "label": "df239fe1 verification snapshot",
+      "kind": "live"
+    }
+  ]
+}
