@@ -183,6 +183,29 @@
         "symmetric": 1,
         "note": "signatures hybrid-pq AVAILABLE opt-in; default + root identity remain classical"
       }
+    },
+    {
+      "date": "2026-06-24",
+      "kind": "milestone",
+      "entry": 9,
+      "phase": "Phase 2 / Q6 — Sequoia PQC signing backend (root-issuance capability, NOT a migration)",
+      "label": "Sequoia PQC signing BACKEND available — capauth can now issue an ML-DSA-87+Ed448 root (sq)",
+      "note": "Built sq 1.4.0-pqc.1 (sequoia-openpgp 2.2.0-pqc.1) against OpenSSL 3.6.2 native ML-KEM/ML-DSA/SLH-DSA; verified generate->sign->verify. GnuPG disqualified (PQC encryption-only, cannot sign with ML-DSA/SLH-DSA). capauth SequoiaBackend wired (capauth main 34dbcf0): crypto/sequoia_backend.py + Algorithm.HYBRID_ED448_MLDSA87 (suite mldsa87-ed448-v2) + CryptoBackendType.SEQUOIA + 4 TDD tests. Strongest issuable root = ML-DSA-87+Ed448 (FIPS 204, NIST L5) primary + ML-KEM-1024+X448 (FIPS 203, L5) subkey on OpenPGP v6/RFC 9580 (64-hex fps). BACKEND CAPABILITY ONLY: LIVE root PGP identity is STILL CLASSICAL ed25519-v1 — root-key rotation ceremony with Chef's real key (02BC0EB3CAD31DB691A753C70C5629AB893F9746) remains gated. Issuing against draft-ietf-openpgp-pqc-17 (Standards Track, RFC Editor queue, NOT yet an RFC; codepoint 31 ML-DSA-87+Ed448, 36 ML-KEM-1024+X448). Open item: sq sign has no --password flag (keystore path for protected-key signing).",
+      "status_counts": {
+        "classical": 1,
+        "symmetric": 1,
+        "hybrid-pq": 1,
+        "hybrid-pq-available": 1,
+        "mixed": 1,
+        "backend-available": 1
+      },
+      "summary": {
+        "total_surfaces": 4,
+        "quantum_resistant": 1,
+        "classical": 3,
+        "symmetric": 1,
+        "note": "PQC signing backend available; LIVE root identity remains CLASSICAL until the gated rotation ceremony"
+      }
     }
   ]
 }

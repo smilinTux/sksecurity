@@ -241,3 +241,90 @@ unless a signer explicitly uses the hybrid suite. No global / end-to-end /
 Next milestones: Q6 Sequoia migration of the PGP backend (prerequisite for
 migrating the root identity itself), then the root-key rotation ceremony — both
 gated on Chef's decision.
+
+## 2026-06-24 — Entry #9: Sequoia PQC signing BACKEND available — capauth can now ISSUE an ML-DSA-87 + Ed448 root  🛠️ *(Phase 2 / Q6 — backend capability, NOT a migration)*
+
+The Q6 prerequisite is in hand: a **PQC signing backend** exists and is wired
+into capauth, so the tooling can now *issue* a post-quantum root PGP identity.
+**This is a BACKEND CAPABILITY, not the root migration.** The live root PGP
+identity is **STILL CLASSICAL** — the root-key rotation ceremony (performed with
+Chef's REAL key, fingerprint `02BC0EB3CAD31DB691A753C70C5629AB893F9746`) remains
+a **deliberate, gated, later step**. Nothing about the operator's live identity
+changed here; we built the press, we did not yet print the new key.
+
+**Why a new backend at all — GnuPG is disqualified for this.** GnuPG's
+post-quantum support is **encryption-only** (ML-KEM / Kyber); it **cannot
+sign or certify** with ML-DSA or SLH-DSA. (Latest GnuPG dev is 2.5.20; stable
+2.6 not shipped.) A PQC *signing* root therefore needs a different backend.
+
+**Sequoia `sq` is the only backend that hosts a PQC signing root.** Built
+`sq 1.4.0-pqc.1` (sequoia-openpgp `2.2.0-pqc.1`) from crates.io
+(`cargo install sequoia-sq --version 1.4.0-pqc.1 --locked --no-default-features
+--features crypto-openssl`), against **linuxbrew OpenSSL 3.6.2** (native ML-KEM /
+ML-DSA / SLH-DSA). Toolchain: `rustc 1.96.0` via rustup (system rust 1.75 is too
+old — Sequoia needs ≥1.79 — and was left untouched). Build env:
+`OPENSSL_DIR=/home/linuxbrew/.linuxbrew/opt/openssl@3`,
+`BINDGEN_EXTRA_CLANG_ARGS="-I$OPENSSL_DIR/include"`,
+`PKG_CONFIG_PATH=$OPENSSL_DIR/lib/pkgconfig`,
+`CARGO_TARGET_DIR=~/pqc-build/target`; apt build deps `pkg-config capnproto clang
+libsqlite3-dev patchelf`. Durability: `patchelf --set-rpath
+.../openssl@3/lib ~/.cargo/bin/sq` so `sq` runs without `LD_LIBRARY_PATH`. Binary
+at `~/.cargo/bin/sq`; build script `~/pqc-build/build-sq.sh`, log
+`~/pqc-build/build.log`.
+
+**PQC capability verified end-to-end (generate → sign → verify).** `sq key
+generate` offers cipher-suites `mldsa65-ed25519` and `mldsa87-ed448` (alongside
+classical cv25519 / rsa2k-4k). The **strongest standards-aligned root** is
+`mldsa87-ed448` → a primary **ML-DSA-87 + Ed448** (FIPS 204, NIST Level 5;
+certify + sign + auth) with an **ML-KEM-1024 + X448** encryption subkey (FIPS
+203, Level 5) — which requires `--profile rfc9580` (OpenPGP **v6**, so v6
+fingerprints are 64 hex chars, not 40). There is **no standalone SLH-DSA primary
+in this build** (SLH-DSA exists only at the liboqs layer; liboqs 0.14.0 already
+ships ML-DSA-87, ML-KEM-1024, and the full FIPS 205 SLH-DSA family — no rebuild
+needed). Note `sq sign` has **no `--password` flag** — protected-key signing must
+go through the sq keystore or another path (open item to investigate).
+
+**capauth code already landed** (capauth `main`, commit `34dbcf0`):
+- **`crypto/sequoia_backend.py`** — `SequoiaBackend` implements the `CryptoBackend`
+  ABC (`generate_keypair` / `sign` / `verify` / `fingerprint_from_armor`) by
+  driving the `sq` subprocess.
+- **`models.py`** — new `Algorithm.HYBRID_ED448_MLDSA87`
+  (`"hybrid-ed448-mldsa87"`) + suite id `mldsa87-ed448-v2`;
+  `CryptoBackendType.SEQUOIA`. `crypto/__init__.py` wires
+  `get_backend(SEQUOIA)`.
+- **`tests/test_sequoia_backend.py`** — 4 TDD tests (keygen→ML-DSA-87,
+  sign/verify + tamper, fingerprint round-trip, factory). Sits alongside the
+  `CryptoBackend` ABC (`crypto/base.py`), the PGPy backend (`crypto/pgpy_backend.py`),
+  profile init (`profile.py`), and the challenge path (`identity.py` /
+  `pqc_identity.py`).
+
+### Current posture (UNCHANGED from Entry #8 — this is a backend capability, not a migration)
+
+| Surface | Suite | Status |
+|---|---|---|
+| identity ROOT PGP key (LIVE) | `ed25519-v1` | **classical — NOT migrated (ceremony gated)** |
+| identity ROOT (ISSUABLE via `sq`, not adopted) | `mldsa87-ed448-v2` | backend-available (ML-DSA-87 + Ed448, FIPS 204 L5) |
+| identity / challenge (hybrid leg, Q7) | `mldsa65-ed25519-v2` | **hybrid-pq** (DID/challenge layer only) |
+| envelope-sig (hybrid-signed, Q7) | `mldsa65-ed25519-v2` | **hybrid-pq** (opt-in) |
+| group-key / dm / envelope-payload (KEM) | `x25519-mlkem768` | hybrid-pq (where negotiated) |
+| at-rest (operator store) | `x25519-mlkem768` | hybrid-pq |
+
+**Honest scope.** What changed: capauth gained a backend that *can* generate,
+sign, and verify with **ML-DSA-87 + Ed448** (FIPS 204) and an **ML-KEM-1024 +
+X448** (FIPS 203) subkey, via Sequoia `sq` on OpenPGP v6 / RFC 9580. What did
+**NOT** change: the **live root PGP identity is still classical `ed25519-v1`** and
+will stay so until the root-key rotation ceremony is performed with Chef's real
+key — that ceremony is the gated, deliberate step, not done here. We are issuing
+against **`draft-ietf-openpgp-pqc-17`** — a Standards-Track draft in the RFC
+Editor queue, **not yet an RFC** (code points: 30 ML-DSA-65+Ed25519, **31
+ML-DSA-87+Ed448**, 32-34 SLH-DSA standalone, 35 ML-KEM-768+X25519, **36
+ML-KEM-1024+X448**). The hybrid Ed448-leg / Ed25519-leg signatures remain
+unforgeable only while at least one of their classical/lattice legs holds. No
+global / end-to-end / "quantum-proof" claim is made. Standards cited: **FIPS 204
+(ML-DSA), FIPS 203 (ML-KEM), FIPS 205 (SLH-DSA), RFC 8032 (Ed25519/Ed448), RFC
+9580 (OpenPGP v6), draft-ietf-openpgp-pqc-17**.
+
+Next milestones: resolve protected-key signing for `sq` (no `--password` flag —
+keystore path), then the gated **root-key rotation ceremony** itself (issue the
+ML-DSA-87 + Ed448 root with Chef's real key + the root-rotation ceremony) — the
+one step that finally flips the LIVE identity-root line off classical.
