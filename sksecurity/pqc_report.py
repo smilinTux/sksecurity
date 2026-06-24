@@ -168,9 +168,58 @@ _DEFAULT_SURFACES: list[tuple[str, str, str, str]] = [
         "skchat/sksecurity (AES-256-GCM stores, KMS)",
         "aes256-gcm-v1",
         "Symmetric bulk encryption — Grover-only (~128-bit), quantum-acceptable. "
-        "Key-WRAP layer (not the bulk cipher) gets a hybrid KEM in Phase 1 (Q4).",
+        "The DEK key-WRAP layer (not the bulk cipher) can now be sealed with the "
+        "hybrid X25519+ML-KEM-768 KEM (Q4: skchat.atrest_wrap). AVAILABLE / opt-in "
+        "per store; the fingerprint-keying bug is fixed (DEK is random, not "
+        "fingerprint-derived). Use atrest_surface_for(store) to report a specific "
+        "store's real wrap suite.",
     ),
 ]
+
+#: Suite id for the at-rest symmetric baseline (matches skcomms.crypto_suites).
+DEFAULT_AT_REST_SUITE = "aes256-gcm-v1"
+
+
+def atrest_surface_for(store) -> tuple[str, str, str, str]:
+    """Build the ``at-rest`` surface tuple for a LIVE encrypted store (Q4).
+
+    Mirrors :func:`group_surface_for`: reflects a SPECIFIC store's real DEK-wrap
+    suite so a hybrid-wrapped store reports ``x25519-mlkem768`` [hybrid-pq] while
+    an un-migrated (symmetric-only / legacy-keyed) store still reports the
+    classical/symmetric baseline. The report reflects reality per store (PQC §4.4).
+
+    Args:
+        store: A ``skchat.encrypted_store.EncryptedChatHistory`` (duck-typed:
+            exposes ``crypto_self_report()`` returning ``wrap_suite`` /
+            ``quantum_resistant``), or any object with a ``_wrap_suite`` attr.
+
+    Returns:
+        ``(surface, component, suite_id, note)`` for :func:`build_report`.
+    """
+    is_hybrid = False
+    try:
+        rpt = store.crypto_self_report()
+        is_hybrid = bool(rpt.get("quantum_resistant"))
+    except Exception:
+        suite = getattr(store, "_wrap_suite", None)
+        is_hybrid = suite == "x25519-mlkem768"
+
+    if is_hybrid:
+        note = (
+            "DEK is high-entropy random, sealed with hybrid X25519+ML-KEM-768 "
+            "(skchat.atrest_wrap). Bulk AES-256-GCM is Grover-only. HNDL-resistant: "
+            "a harvested backup is not retroactively decryptable. Fingerprint-keying "
+            "bug fixed."
+        )
+        suite_id = "x25519-mlkem768"
+    else:
+        note = (
+            "Symmetric AES-256-GCM bulk (quantum-acceptable) but the DEK wrap is "
+            "classical/legacy. Migrate via EncryptedChatHistory.migrate_store() to "
+            "the hybrid x25519-mlkem768 DEK wrap (Q4)."
+        )
+        suite_id = DEFAULT_AT_REST_SUITE
+    return ("at-rest", "skchat (encrypted_store DEK wrap)", suite_id, note)
 
 
 def group_surface_for(group) -> tuple[str, str, str, str]:
