@@ -88,6 +88,16 @@ _FALLBACK_SUITES: dict[str, dict] = {
         ],
         "fips_refs": ["FIPS 203", "RFC 7748", "RFC 5869"],
     },
+    # PQC Q7 — LIVE hybrid per-message / challenge signature (Ed25519+ML-DSA-65).
+    "mldsa65-ed25519-v2": {
+        "status": "hybrid-pq",
+        "primitives": [
+            "Ed25519 (RFC 8032)",
+            "ML-DSA-65 (FIPS 204, liboqs)",
+            "length-prefixed SKHS composite (both legs required)",
+        ],
+        "fips_refs": ["FIPS 204", "RFC 8032"],
+    },
 }
 
 _QR_STATUSES = {"hybrid-pq", "pq", "symmetric"}
@@ -166,15 +176,27 @@ _DEFAULT_SURFACES: list[tuple[str, str, str, str]] = [
         "identity",
         "capauth (KeyInfo.algorithm)",
         "ed25519-v1",
-        "Agent/operator PGP signing identity. Shor-breakable; HNDL N/A "
-        "(signatures not retroactive). Migrates in Phase 2.",
+        "Agent/operator ROOT PGP signing identity — CLASSICAL Ed25519/RSA, "
+        "Shor-breakable (HNDL N/A — signatures not retroactive). The ROOT PGP "
+        "key is NOT migrated (gated Sequoia decision). A hybrid Ed25519+ML-DSA-65 "
+        "(FIPS 204) signature is AVAILABLE opt-in at the DID/challenge LAYER ONLY "
+        "via capauth.pqc_identity (respond/verify_challenge_hybrid), using a "
+        "per-agent ML-DSA key SEPARATE from the PGP root. Use "
+        "challenge_sig_surface_for(response) to report a specific challenge's "
+        "real suite.",
     ),
     (
         "envelope-sig",
         "skcomms (SignedEnvelope.sig_suite)",
         "ed25519-v1",
-        "Per-message detached signature over canonical_bytes. Future-forgery "
-        "risk; not HNDL. Migrates in Phase 2.",
+        "Per-message detached signature over canonical_bytes. DEFAULT is "
+        "classical Ed25519 (ed25519-v1); a hybrid Ed25519+ML-DSA-65 (FIPS 204) "
+        "signature is now AVAILABLE / opt-in per envelope via "
+        "skcomms.signing.HybridEnvelopeSigner (sig_suite=mldsa65-ed25519-v2, "
+        "either-or verify). Future-forgery risk on the classical default; not "
+        "HNDL. Use envelope_sig_surface_for(signed) to report a specific "
+        "envelope's real suite. The ROOT PGP identity key is NOT migrated "
+        "(Phase-2 Sequoia, gated).",
     ),
     (
         "group-key",
@@ -240,6 +262,69 @@ def atrest_surface_for(store) -> tuple[str, str, str, str]:
         )
         suite_id = DEFAULT_AT_REST_SUITE
     return ("at-rest", "skchat (encrypted_store DEK wrap)", suite_id, note)
+
+
+def challenge_sig_surface_for(response) -> tuple[str, str, str, str]:
+    """Build the ``identity`` surface tuple for a SPECIFIC challenge response.
+
+    Reflects whether a particular capauth ``ChallengeResponse`` carried a hybrid
+    Ed25519+ML-DSA-65 signature (``response.is_hybrid``) at the DID/challenge
+    LAYER. This NEVER implies the ROOT PGP key migrated — it reports the
+    signing-layer suite only, honestly. A classical response reports
+    ``ed25519-v1``; a hybrid one reports ``mldsa65-ed25519-v2`` [hybrid-pq].
+    """
+    is_hybrid = bool(getattr(response, "is_hybrid", False))
+    if is_hybrid:
+        suite_id = "mldsa65-ed25519-v2"
+        note = (
+            "Challenge response carried a hybrid Ed25519 + ML-DSA-65 (FIPS 204) "
+            "signature ALONGSIDE the classical PGP signature (either-or verify). "
+            "This is the DID/challenge signing layer ONLY — the ROOT PGP identity "
+            "key is unchanged (Phase-2 Sequoia, gated)."
+        )
+    else:
+        suite_id = getattr(response, "sig_suite", "ed25519-v1")
+        note = (
+            "Classical PGP challenge signature (Shor-breakable). Hybrid is "
+            "available opt-in via capauth.pqc_identity; the ROOT PGP key is not "
+            "migrated."
+        )
+    return ("identity", "capauth (challenge sig layer)", suite_id, note)
+
+
+def envelope_sig_surface_for(signed) -> tuple[str, str, str, str]:
+    """Build the ``envelope-sig`` surface tuple for a SPECIFIC signed envelope.
+
+    Mirrors :func:`group_surface_for`: reflects a particular
+    ``skcomms.envelope.SignedEnvelope``'s real ``sig_suite`` so a hybrid-signed
+    envelope reports ``mldsa65-ed25519-v2`` [hybrid-pq] while a classical
+    PGP/Ed25519 envelope reports ``ed25519-v1`` [classical]. The report reflects
+    reality per envelope (PQC §4.4) and never overclaims.
+
+    Args:
+        signed: A ``skcomms.envelope.SignedEnvelope`` (duck-typed: exposes
+            ``sig_suite`` and ``is_hybrid``).
+
+    Returns:
+        ``(surface, component, suite_id, note)`` for :func:`build_report`.
+    """
+    is_hybrid = bool(getattr(signed, "is_hybrid", False))
+    if is_hybrid:
+        suite_id = "mldsa65-ed25519-v2"
+        note = (
+            "Envelope signed with the hybrid Ed25519 + ML-DSA-65 composite "
+            "(FIPS 204): valid iff BOTH legs verify; unforgeable while EITHER "
+            "scheme holds. The ML-DSA signer key is per-signer and SEPARATE from "
+            "the PGP root (which is NOT migrated — Phase-2 Sequoia, gated)."
+        )
+    else:
+        suite_id = getattr(signed, "sig_suite", "ed25519-v1")
+        note = (
+            "Classical Ed25519/PGP detached signature (Shor-breakable, "
+            "future-forgery; not HNDL). A hybrid Ed25519+ML-DSA-65 signature is "
+            "available opt-in via skcomms.signing.HybridEnvelopeSigner."
+        )
+    return ("envelope-sig", "skcomms (SignedEnvelope.sig_suite)", suite_id, note)
 
 
 def group_surface_for(group) -> tuple[str, str, str, str]:
@@ -995,6 +1080,23 @@ SEED_SNAPSHOTS: list[dict] = [
         "note": "New groups/DMs/stores default hybrid; live migration: 4/422 groups hybrid (418 classical — members need prekeys); at-rest store hybrid. identity/sig stay classical (Phase 2).",
         "status_counts": {"classical": 1, "symmetric": 1, "hybrid-pq": 1, "mixed": 1},
         "group_breakdown": {"total": 422, "hybrid": 4, "classical": 418},
+    },
+    {
+        "date": "2026-06-24",
+        "kind": "milestone",
+        "entry": 8,
+        "label": "Q7 per-message + DID/challenge signatures \u2192 hybrid Ed25519+ML-DSA-65 AVAILABLE (opt-in/negotiated)",
+        "note": (
+            "skcomms.pqsig (FIPS 204 ML-DSA-65 + Ed25519 composite, both legs "
+            "required) wired opt-in into SignedEnvelope.sig_suite "
+            "(HybridEnvelopeSigner) + capauth.pqc_identity challenge "
+            "(respond/verify_challenge_hybrid). Either-or verify; classical "
+            "ed25519-v1 stays default for old peers (byte-for-byte unchanged). "
+            "ML-DSA signer key is per-signer, SEPARATE from the PGP root. "
+            "IDENTITY ROOT PGP key still CLASSICAL \u2014 Sequoia migration "
+            "gated/separate."
+        ),
+        "status_counts": {"classical": 1, "symmetric": 1, "hybrid-pq": 1, "hybrid-pq-available": 1, "mixed": 1},
     },
 ]
 
