@@ -115,3 +115,58 @@ def test_default_report_unchanged_still_all_classical_q0_baseline():
     gk = next(s for s in rpt["surfaces"] if s["surface"] == "group-key")
     assert gk["active_suite"] == "rsa-pgp-wrap-v1"
     assert gk["status"] == "classical"
+
+
+# ---------------------------------------------------------------------------
+# PQC Q4 — per-store at-rest surface reflects REALITY (hybrid vs symmetric)
+# ---------------------------------------------------------------------------
+
+
+class _FakeStore:
+    """Duck-typed stand-in for skchat.encrypted_store.EncryptedChatHistory."""
+
+    def __init__(self, wrap_suite: str | None):
+        self._wrap_suite = wrap_suite
+
+    def crypto_self_report(self) -> dict:
+        is_hybrid = self._wrap_suite == "x25519-mlkem768"
+        return {
+            "surface": "at-rest",
+            "wrap_suite": self._wrap_suite or "unwrapped",
+            "quantum_resistant": is_hybrid,
+        }
+
+
+def test_atrest_surface_hybrid_reports_hybrid_pq():
+    from sksecurity.pqc_report import atrest_surface_for, build_report
+
+    store = _FakeStore("x25519-mlkem768")
+    rpt = build_report(surfaces=[atrest_surface_for(store)])
+    s = rpt["surfaces"][0]
+    assert s["surface"] == "at-rest"
+    assert s["active_suite"] == "x25519-mlkem768"
+    assert s["status"] == "hybrid-pq"
+    assert s["quantum_resistant"] is True
+    assert "FIPS 203" in s["fips_refs"]
+    assert "fingerprint" in s["note"].lower()  # documents the fixed bug
+
+
+def test_atrest_surface_unmigrated_still_symmetric():
+    from sksecurity.pqc_report import atrest_surface_for, build_report
+
+    store = _FakeStore(None)
+    rpt = build_report(surfaces=[atrest_surface_for(store)])
+    s = rpt["surfaces"][0]
+    assert s["active_suite"] == "aes256-gcm-v1"
+    assert s["status"] == "symmetric"
+    assert s["quantum_resistant"] is True  # symmetric is quantum-acceptable
+
+
+def test_default_report_atrest_still_symmetric_baseline():
+    """The DEFAULT report keeps at-rest as the symmetric baseline (Q4 is opt-in)."""
+    from sksecurity.pqc_report import build_report
+
+    rpt = build_report()
+    ar = next(s for s in rpt["surfaces"] if s["surface"] == "at-rest")
+    assert ar["active_suite"] == "aes256-gcm-v1"
+    assert ar["status"] == "symmetric"
