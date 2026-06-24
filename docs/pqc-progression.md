@@ -12,10 +12,10 @@ Phase Q0 complete (crypto-agility scaffolding) — every surface is suite-id tag
 
 | Surface | Suite | Status |
 |---|---|---|
-| identity | `?` | classical |
-| envelope-sig | `?` | classical |
-| group-key | `?` | classical |
-| at-rest | `?` | symmetric |
+| identity | `ed25519-v1` | classical |
+| envelope-sig | `ed25519-v1` | classical |
+| group-key | `rsa-pgp-wrap-v1` | classical |
+| at-rest | `aes256-gcm-v1` | symmetric |
 
 **Posture:** 1/4 quantum-resistant · 3 classical · 1 symmetric. **NOT quantum-resistant end-to-end** — all asymmetric surfaces are classical. PQC migration not started.
 
