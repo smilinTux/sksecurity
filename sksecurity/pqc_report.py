@@ -58,6 +58,16 @@ _FALLBACK_SUITES: dict[str, dict] = {
         "primitives": ["AES-256-GCM", "HKDF-SHA256"],
         "fips_refs": ["FIPS 197", "SP 800-38D", "SP 800-108"],
     },
+    # PQC Q2 — LIVE hybrid group-key distribution (skchat group epoch-ratchet).
+    "x25519-mlkem768": {
+        "status": "hybrid-pq",
+        "primitives": [
+            "X25519 (ephemeral-static DHKEM)",
+            "ML-KEM-768 (FIPS 203, liboqs)",
+            "HKDF-SHA256 concat-KDF combiner",
+        ],
+        "fips_refs": ["FIPS 203", "RFC 7748", "RFC 5869"],
+    },
 }
 
 _QR_STATUSES = {"hybrid-pq", "pq", "symmetric"}
@@ -161,6 +171,46 @@ _DEFAULT_SURFACES: list[tuple[str, str, str, str]] = [
         "Key-WRAP layer (not the bulk cipher) gets a hybrid KEM in Phase 1 (Q4).",
     ),
 ]
+
+
+def group_surface_for(group) -> tuple[str, str, str, str]:
+    """Build the ``group-key`` surface tuple for a LIVE ``GroupChat``.
+
+    The default :func:`build_report` describes the *default* (classical) group
+    suite for honesty. This helper instead reflects a SPECIFIC group's real
+    ``kem_suite`` so a hybrid-ratchet group's group-key surface reports
+    ``x25519-mlkem768`` [hybrid-pq] while a classical group still reports
+    classical — the report reflects reality per group (PQC §4.4).
+
+    Pass the result into ``build_report(surfaces=[...])`` (alongside the other
+    default surfaces if a full report is wanted) or read ``group.crypto_self_report()``
+    directly for the group-scoped view.
+
+    Args:
+        group: A ``skchat.group.GroupChat`` (duck-typed: needs ``id``,
+            ``kem_suite``, ``epoch``, and ``is_hybrid``).
+
+    Returns:
+        ``(surface, component, suite_id, note)`` for :func:`build_report`.
+    """
+    suite_id = getattr(group, "kem_suite", DEFAULT_GROUP_NOTE_SUITE)
+    if getattr(group, "is_hybrid", False):
+        note = (
+            f"Group {getattr(group, 'id', '?')[:8]} on the hybrid epoch-ratchet "
+            f"(epoch {getattr(group, 'epoch', 0)}). Per-epoch secret wrapped via "
+            "X25519+ML-KEM-768; per-message keys derive symmetrically (AES-256-GCM "
+            "bulk). HNDL-resistant for this group."
+        )
+    else:
+        note = (
+            "Classical PGP-wrap of a static AES-256 group key (HNDL-exposed). "
+            "Migrate via GroupChat.migrate_to_hybrid() to reach x25519-mlkem768."
+        )
+    return ("group-key", "skchat (GroupChat.kem_suite)", suite_id, note)
+
+
+#: Suite id used when a group object omits ``kem_suite`` (defensive default).
+DEFAULT_GROUP_NOTE_SUITE = "rsa-pgp-wrap-v1"
 
 
 def build_report(surfaces: Optional[list[tuple[str, str, str, str]]] = None) -> dict:

@@ -63,3 +63,55 @@ def test_format_report_renders():
     text = format_report()
     assert "PQC Self-Report" in text
     assert "classical" in text
+
+
+# ---------------------------------------------------------------------------
+# PQC Q2 — per-group surface reflects REALITY (hybrid vs classical)
+# ---------------------------------------------------------------------------
+
+
+class _FakeGroup:
+    """Duck-typed stand-in for skchat.group.GroupChat (no skchat dep needed)."""
+
+    def __init__(self, suite: str, epoch: int = 0):
+        self.id = "abcd1234-0000-0000-0000-000000000000"
+        self.kem_suite = suite
+        self.epoch = epoch
+
+    @property
+    def is_hybrid(self) -> bool:
+        return self.kem_suite == "x25519-mlkem768"
+
+
+def test_group_surface_hybrid_reports_hybrid_pq():
+    from sksecurity.pqc_report import build_report, group_surface_for
+
+    g = _FakeGroup("x25519-mlkem768", epoch=2)
+    rpt = build_report(surfaces=[group_surface_for(g)])
+    s = rpt["surfaces"][0]
+    assert s["surface"] == "group-key"
+    assert s["active_suite"] == "x25519-mlkem768"
+    assert s["status"] == "hybrid-pq"
+    assert s["quantum_resistant"] is True
+    assert "FIPS 203" in s["fips_refs"]
+
+
+def test_group_surface_classical_still_classical():
+    from sksecurity.pqc_report import build_report, group_surface_for
+
+    g = _FakeGroup("rsa-pgp-wrap-v1")
+    rpt = build_report(surfaces=[group_surface_for(g)])
+    s = rpt["surfaces"][0]
+    assert s["status"] == "classical"
+    assert s["quantum_resistant"] is False
+
+
+def test_default_report_unchanged_still_all_classical_q0_baseline():
+    """The DEFAULT report must stay honest (group-key classical) — groups are
+    per-group/opt-in until they migrate."""
+    from sksecurity.pqc_report import build_report
+
+    rpt = build_report()
+    gk = next(s for s in rpt["surfaces"] if s["surface"] == "group-key")
+    assert gk["active_suite"] == "rsa-pgp-wrap-v1"
+    assert gk["status"] == "classical"
