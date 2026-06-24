@@ -326,10 +326,11 @@ def test_seed_ledger_idempotent(tmp_path, monkeypatch):
     n1 = len(_json.loads(ledger_path.read_text())["snapshots"])
     P.seed_ledger()  # idempotent: no duplicate seeds
     n2 = len(_json.loads(ledger_path.read_text())["snapshots"])
-    assert n1 == n2 == 6
-    # entries 1..6 present
+    assert n1 == n2 == 7
+    # entries 1..6 + 8 present (Entry #7 is reporting-only, no ledger seed;
+    # Entry #8 = Q7 hybrid signatures)
     entries = [s.get("entry") for s in _json.loads(ledger_path.read_text())["snapshots"]]
-    assert entries == [1, 2, 3, 4, 5, 6]
+    assert entries == [1, 2, 3, 4, 5, 6, 8]
 
 
 # ---------------------------------------------------------------------------
