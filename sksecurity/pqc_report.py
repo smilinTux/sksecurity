@@ -422,6 +422,82 @@ def conversation_surface_for(
     return (surface, component, suite_id, note)
 
 
+#: DM ratchet levels the self-report can learn (RFC-0001 P4).
+DM_RATCHET_LEVELS = ("L2-oneshot", "L3-epoch")
+
+
+def dm_ratchet_surface_for(
+    negotiated_suite: str,
+    ratchet_level: str = "L2-oneshot",
+    epoch: int = 0,
+    peer: str = "",
+) -> tuple[str, str, str, str]:
+    """Build a per-DM surface tuple that learns the RATCHET LEVEL (RFC-0001 P4).
+
+    Extends :func:`conversation_surface_for`: the honesty self-report reports not
+    just *which suite* a 1:1 conversation negotiated, but *how much forward
+    secrecy* the running session actually provides.
+
+    * ``L2-oneshot`` — today's stateless single-prekey hybrid seal. PQ protection
+      lives at the *published prekey only*; there is no running ratchet, so there
+      is no forward secrecy beyond prekey rotation.
+    * ``L3-epoch`` — the running :class:`DmRatchet`: a per-epoch hybrid-KEM rekey
+      giving forward secrecy (FS) AND post-compromise security (PCS).
+
+    Honesty rules (sk-standards CRYPTOGRAPHY_STANDARD):
+      * never claim "quantum-proof"/"quantum-safe"/"unbreakable";
+      * a hybrid leg is secure iff EITHER X25519 or ML-KEM-768 (FIPS 203) holds;
+      * if the negotiated suite is CLASSICAL (not ``x25519-mlkem768``) the note
+        says HNDL-exposed regardless of ratchet level — a ratchet structure over
+        a classical KEM still leaks to a harvest-now-decrypt-later adversary.
+
+    Args:
+        negotiated_suite: The suite the conversation actually used
+            (``x25519-mlkem768`` for hybrid, else the classical wrap).
+        ratchet_level: ``"L2-oneshot"`` (stateless one-shot) or ``"L3-epoch"``
+            (running per-epoch ratchet). Unknown values fall back to L2 (honest).
+        epoch: Current ratchet epoch (surfaced in the note for ``L3-epoch``).
+        peer: Optional peer identifier for the note.
+
+    Returns:
+        ``(surface, component, suite_id, honest_note)`` for :func:`build_report`.
+    """
+    level = ratchet_level if ratchet_level in DM_RATCHET_LEVELS else "L2-oneshot"
+    suite_id = negotiated_suite or DEFAULT_CONVERSATION_SUITE
+    resolved = _resolve_suite(suite_id)
+    is_hybrid = resolved["quantum_resistant"]
+    who = f" with {peer}" if peer else ""
+
+    if not is_hybrid:
+        # Classical KEM: a ratchet over it is still HNDL-exposed at BOTH levels.
+        note = (
+            f"DM{who} on the CLASSICAL PGP key-wrap ({suite_id}) — HNDL-exposed: "
+            f"recorded ciphertext is retroactively decryptable. The {level} "
+            "ratchet structure provides NO post-quantum confidentiality while the "
+            "KEM is classical; negotiate the hybrid X25519+ML-KEM-768 (FIPS 203) "
+            "suite to close the harvest-now-decrypt-later gap."
+        )
+    elif level == "L3-epoch":
+        note = (
+            f"DM{who} on the running epoch-ratchet, FS + PCS, hybrid "
+            f"X25519+ML-KEM-768 rekey per epoch (epoch {epoch}). Each epoch "
+            "re-derives the chain from a fresh hybrid-KEM secret, so a compromised "
+            "key neither decrypts past epochs (forward secrecy) nor future ones "
+            "once healed (post-compromise security). Secure while EITHER the "
+            "X25519 or the ML-KEM-768 (FIPS 203) leg holds."
+        )
+    else:  # L2-oneshot
+        note = (
+            f"DM{who} sealed with a stateless one-shot hybrid seal — PQ at the "
+            "published prekey only, no running ratchet. Forward secrecy is limited "
+            "to prekey rotation (no per-message/per-epoch rekey, no "
+            "post-compromise security). Secure while EITHER the X25519 or the "
+            "ML-KEM-768 (FIPS 203) leg holds; upgrade to the L3 epoch-ratchet for "
+            "FS + PCS."
+        )
+    return ("dm", "skchat (DmRatchet)", suite_id, note)
+
+
 #: Suite id used when a group object omits ``kem_suite`` (defensive default).
 DEFAULT_GROUP_NOTE_SUITE = "rsa-pgp-wrap-v1"
 
