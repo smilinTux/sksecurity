@@ -220,6 +220,12 @@ _NEGATION_WORD_RE = re.compile(
 _NEGATION_MARKERS: Tuple[str, ...] = (
     "❌", "🚫", "no such thing", "not truly", "n't",
 )
+# "Open Quantum Safe" / "open-quantum-safe" is the name of the OQS project
+# (and the liboqs library/URL) — a proper noun PQC repos cite constantly, NOT
+# a "quantum-safe" security claim. A `quantum-safe` hit immediately preceded by
+# "open" + a separator is the tail of that proper noun and is not a claim.
+_OQS_PROPER_NOUN = re.compile(r"open[\s\-_]$", re.IGNORECASE)
+
 # Inline directives that suppress a whole line.
 _INLINE_ALLOW = re.compile(r"honest[-\s]?claims:\s*allow|noqa:\s*honest[-\s]?claims",
                            re.IGNORECASE)
@@ -240,7 +246,7 @@ SKIP_EXTENSIONS: Set[str] = {
 SKIP_DIRS: Set[str] = {
     ".git", "node_modules", "__pycache__", ".venv", "venv",
     ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-    "dist", "build", ".eggs", "site-packages",
+    "dist", "build", ".eggs", "site-packages", "target",
 }
 
 
@@ -286,6 +292,11 @@ class HonestClaimsScanner:
                 if _INLINE_ALLOW.search(line):
                     continue
                 if needs_ctx and not _SECURITY_CONTEXT.search(line):
+                    continue
+                if label == "quantum-safe" and _OQS_PROPER_NOUN.search(
+                    text[max(0, start - 6):start]
+                ):
+                    # tail of the "Open Quantum Safe" project name, not a claim
                     continue
                 if self._is_negated(text, start, match.end()):
                     continue

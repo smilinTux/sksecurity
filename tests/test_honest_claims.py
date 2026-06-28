@@ -127,6 +127,46 @@ class TestHonestNegations:
         assert scanner.scan_text("Built from military-grade titanium.") == []
 
 
+# ─── "Open Quantum Safe" proper noun (the OQS project / liboqs) ─────
+
+
+class TestOpenQuantumSafeProperNoun:
+    """"Open Quantum Safe" / "open-quantum-safe" is the name of the OQS
+    project (liboqs), not a "quantum-safe" security claim. PQC repos cite it
+    constantly; the gate must not fire on the proper noun."""
+
+    def test_open_quantum_safe_project_name(self, scanner):
+        assert scanner.scan_text(
+            "The ML-KEM-768 leg binds liboqs from Open Quantum Safe."
+        ) == []
+
+    def test_open_quantum_safe_hyphenated_url(self, scanner):
+        assert scanner.scan_text(
+            "via [liboqs](https://github.com/open-quantum-safe/liboqs)"
+        ) == []
+
+    def test_open_quantum_safe_underscore_variant(self, scanner):
+        assert scanner.scan_text("see the open_quantum_safe org on GitHub") == []
+
+    def test_real_quantum_safe_claim_still_flags(self, scanner):
+        # A genuine "quantum-safe" claim (not the proper noun) must still fire.
+        findings = scanner.scan_text("Our protocol is quantum-safe today.")
+        assert any(f.claim == "quantum-safe" for f in findings)
+
+
+# ─── Rust / cargo build dir is skipped ──────────────────────────────
+
+
+class TestCargoTargetSkipped:
+    def test_target_build_dir_ignored(self, temp_dir):
+        target = temp_dir / "target" / "debug"
+        target.mkdir(parents=True)
+        (target / "libfoo.rlib").write_text("quantum-proof unbreakable")
+        (temp_dir / "README.md").write_text("Post-quantum, FIPS 203.")
+        result = HonestClaimsScanner().scan_directory(temp_dir)
+        assert not result.has_violations
+
+
 # ─── Inline allow directive ─────────────────────────────────────────
 
 

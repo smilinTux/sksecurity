@@ -11,3 +11,7 @@
 
 # Test fixtures: deliberately assert raw overclaims to prove detection works.
 tests/test_honest_claims.py
+
+# Audit reports: reproduce the flagged phrases verbatim as evidence (the
+# findings they report), same data-file rationale as the test fixtures above.
+*audit-*.md
