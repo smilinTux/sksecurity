@@ -16,6 +16,17 @@ under `~/.sksecurity/`, never phoning home.
 your secrets scanner reports to a SaaS dashboard, your audit log lives in someone else's SIEM.
 SKSecurity rebuilds the perimeter **local-first** — same disciplines, your hardware, your seal.
 
+> **Maturity tier: T0 — symmetric/hash (already quantum-acceptable).** SKSecurity's own crypto
+> is the internal KMS tree (scrypt → HKDF-SHA256 → AES-256-GCM, DEK `os.urandom(32)`), which is
+> entirely symmetric/hash and **already quantum-acceptable** — Grover only halves AES-256 to
+> ~128-bit, which is safe (**AES-256 is not "broken" by quantum**). It holds **no asymmetric
+> key material of its own**, so there is **no Shor-vulnerable surface to migrate** (caveat: a PGP
+> master root would re-introduce one and must then migrate to a hybrid / SLH-DSA root). In the
+> ecosystem PQC migration SKSecurity is the **evidence engine** — the honest-claim auditor and the
+> per-channel runtime self-report (KEM / signature / cipher + hybrid-vs-classical, citing FIPS
+> 203/204/205). See [SOP.md](SOP.md) and [docs/QUANTUM_RESISTANCE.md](docs/QUANTUM_RESISTANCE.md);
+> standard = sk-standards [CRYPTOGRAPHY_STANDARD](https://github.com/smilinTux/sk-standards).
+
 ---
 
 ## The 60-second version
@@ -216,6 +227,28 @@ sksecurity guard install   # add the pre-commit secret hook to this repo
 ```
 
 ---
+
+## Related projects / See also
+
+SKSecurity is the perimeter — it screens for the rest of the stack and reports on it.
+
+- ↔️ **Sibling (identity):** [capauth](https://github.com/smilinTux/capauth) — sovereign
+  PGP identity / DID; SKSecurity can seal KMS keys via a PGP identity and reports on
+  capauth's DID crypto surface.
+- ↔️ **Sibling (hybrid KEM):** [sk-pqc](https://github.com/smilinTux/sk-pqc-py) — the
+  `HKDF(X25519 ‖ ML-KEM-768)` KEM (FIPS 203) for confidentiality; SKSecurity provides
+  the static inventory + self-report that makes its claims evidence-backed, not the KEM.
+- ↔️ **Sibling (PQC OpenPGP):** [sk_pgp](https://github.com/smilinTux/sk_pgp) — sovereign
+  OpenPGP-PQC signing library; a future hybrid/SLH-DSA KMS root would build on it.
+- ⬆️ **Reports on:** [skchat](https://github.com/smilinTux/skchat) /
+  [skcomms](https://github.com/smilinTux/skcomms) — the live channels whose negotiated
+  KEM / signature / cipher the self-report surfaces per-channel.
+- ↔️ **Optional peers:** [skseed](https://github.com/smilinTux/skseed) (Steel Man
+  Collider verification), [skcapstone](https://github.com/smilinTux/skcapstone) (sk-alert
+  bus + skscheduler, default-on by package presence).
+- 📐 **Standards:** [sk-standards](https://github.com/smilinTux/sk-standards) — the
+  crypto, data-flow, version, and doc/SOP standards (incl. `CRYPTOGRAPHY_STANDARD`,
+  which SKSecurity both conforms to and enforces).
 
 ## License
 
