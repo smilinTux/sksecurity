@@ -544,6 +544,35 @@ def pqc_dashboard(ctx, output_format, static, no_stacks):
     else:
         click.echo(format_dashboard(dash))
 
+@cli.command(name="pqc-posture")
+@click.option('--format', 'output_format', default='text',
+              type=click.Choice(['text', 'json']))
+@click.option('--static', 'static', is_flag=True, default=False,
+              help="Static honest-default coverage instead of live operator enrichment.")
+@click.pass_context
+def pqc_posture(ctx, output_format, static):
+    """PQC POSTURE / coverage table — per surface: hybrid-pq / gated / classical.
+
+    Scans the six security surfaces of the sovereign-comms ecosystem (DM ratchet,
+    group, metadata, identity/signatures, at-rest, transport) and reports, for
+    each, whether hybrid-PQ is the DEFAULT (hybrid-pq), merely AVAILABLE/opt-in/
+    negotiated (gated), or ABSENT (classical). Grounded in the REAL wire-tags
+    (pqdr1, kem_suite/x25519-mlkem768, aqid:+pqroute1, sig_suite, wrap_suite, the
+    classical channel underlay) — never an out-of-band assumption.
+
+    Live mode (default) up-rates group/at-rest from the operator's real objects
+    only when the evidence is unambiguous; --static shows the honest default.
+    Honest claims only — hybrid = either-leg (FIPS 203 / FIPS 204); never
+    'quantum-proof' or whole-system post-quantum.
+    """
+    from .pqc_posture import build_posture, format_posture
+    rpt = build_posture(live=not static)
+    if output_format == 'json':
+        click.echo(json.dumps(rpt, indent=2))
+    else:
+        click.echo(format_posture(rpt))
+
+
 @cli.command()
 @click.argument('content', required=False)
 @click.option('--file', '-f', type=click.Path(exists=True), help='Read content from file')
