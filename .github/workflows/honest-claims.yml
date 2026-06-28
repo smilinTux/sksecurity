@@ -1,0 +1,32 @@
+name: Honest Claims
+
+# The ecosystem no-overclaim gate. Fails the build if any tracked file
+# asserts a forbidden security overclaim ("quantum-proof", "quantum-safe",
+# "unbreakable", "uncrackable", "100% secure", or "military-grade" used as a
+# security claim). Honest negations ("never quantum-proof"), quoted/meta
+# references, and files listed in .honestclaims-allow are permitted.
+#
+# Claims must match the math: a classical KEM stays harvest-now-decrypt-later
+# exposed; a hybrid scheme is only as strong as its strongest surviving leg.
+# Cite the standard (FIPS 203/204/205), not the adjective.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  honest-claims:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install sksecurity
+        run: pip install -e .
+      - name: Run no-overclaim gate
+        run: sksecurity claims scan .
+      - name: Honest-claims unit tests
+        run: python -m pytest tests/test_honest_claims.py -v --tb=short

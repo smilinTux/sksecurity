@@ -1,0 +1,13 @@
+# SKSecurity honest-claims allowlist
+# ----------------------------------------------------------------------
+# One fnmatch glob (or path substring) per line. Files matching any entry
+# are SKIPPED by the no-overclaim gate. Comments start with '#'.
+#
+# Use this ONLY for files that must contain raw forbidden phrases as data
+# (test fixtures, the scanner's own pattern table) — NOT to hide real
+# marketing overclaims. Honest-discipline docs (SOP, SECURITY, etc.) do
+# NOT need entries here: they quote/negate the forbidden tokens, which the
+# scanner already recognises as meta-references, not claims.
+
+# Test fixtures: deliberately assert raw overclaims to prove detection works.
+tests/test_honest_claims.py

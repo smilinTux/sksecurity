@@ -23,6 +23,7 @@ from .monitor import SecurityMonitor
 from .quarantine import QuarantineManager
 from .email_screener import EmailScreener
 from .secret_guard import SecretGuard, GuardResult
+from .honest_claims import HonestClaimsScanner
 from .pdf_report import generate_audit_pdf
 
 @click.group()
@@ -747,6 +748,71 @@ Version: {data['version']}
 🎯 Overall Status: OPERATIONAL
 """
     return report
+
+@cli.group()
+def claims():
+    """Honest-claims gate — block forbidden security overclaims.
+
+    Scans docs, code, and comments for "quantum-proof", "quantum-safe",
+    "unbreakable", "uncrackable", "100% secure", and "military-grade"
+    (as a security claim). Honest negations ("never quantum-proof") and
+    quoted/meta references are allowed. Exits non-zero on a real violation.
+    """
+    pass
+
+
+@claims.command(name='scan')
+@click.argument('path', type=click.Path(exists=True), default='.')
+@click.option('--format', 'output_format', default='text',
+              type=click.Choice(['text', 'json']))
+@click.option('--allowlist-file', type=click.Path(), default=None,
+              help='Path to an allowlist file (default: <path>/.honestclaims-allow)')
+def claims_scan(path, output_format, allowlist_file):
+    """Scan a file or directory for forbidden security overclaims.
+
+    Examples:
+        sksecurity claims scan .
+        sksecurity claims scan README.md
+        sksecurity claims scan ./docs --format json
+    """
+    target = Path(path)
+
+    allow = Path(allowlist_file) if allowlist_file else None
+    if allow is None:
+        default_allow = (target if target.is_dir() else target.parent) / ".honestclaims-allow"
+        if default_allow.exists():
+            allow = default_allow
+
+    scanner = HonestClaimsScanner(allowlist_file=allow)
+    result = scanner.scan_path(target)
+
+    if output_format == 'json':
+        click.echo(json.dumps(result.to_dict(), indent=2))
+    else:
+        click.echo(result.format_report())
+
+    sys.exit(1 if result.has_violations else 0)
+
+
+@claims.command(name='text')
+@click.argument('text')
+def claims_text(text):
+    """Scan a single string for overclaims (handy for testing).
+
+    Examples:
+        sksecurity claims text "our protocol is quantum-proof"
+        sksecurity claims text "we never say quantum-proof"
+    """
+    findings = HonestClaimsScanner().scan_text(text)
+    if not findings:
+        click.echo("✅ No forbidden overclaims. Claims match the math.")
+    else:
+        click.echo(f"🚨 Found {len(findings)} overclaim(s):")
+        for f in findings:
+            click.echo(f"  🔴 {f.claim}: {f.matched_text}")
+            click.echo(f"     Say: {f.suggestion}")
+    sys.exit(1 if findings else 0)
+
 
 def main():
     """Main CLI entry point."""
