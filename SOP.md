@@ -164,6 +164,16 @@ flowchart TD
     style VERIFY fill:#51cf66,stroke:#2b8a3e,stroke-width:2px
 ```
 
+### Front-end / Exposure
+
+Per [sk-standards `UNIFIED_INGRESS_STANDARD.md`](https://github.com/smilinTux/sk-standards/blob/main/standards/UNIFIED_INGRESS_STANDARD.md):
+
+**N/A — no network surface.** sksecurity is a CLI / Python library + MCP (stdio)
+secret-scanner; it serves no public `:443` route and binds no listener. The
+`dashboard_port` config knob (default `8888`, `sksecurity/config.py`) is an unimplemented
+placeholder — no HTTP server backs it. If a dashboard is ever shipped it MUST bind
+`127.0.0.1` / tailnet behind a Tier 0 Funnel path-route, never a public port.
+
 ---
 
 ## 6. Configuration / Usage
