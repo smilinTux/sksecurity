@@ -1,5 +1,7 @@
 # SKSecurity — AI-native Security 🛡️
 
+[![CI](https://github.com/smilinTux/sksecurity/actions/workflows/ci.yml/badge.svg)](https://github.com/smilinTux/sksecurity/actions/workflows/ci.yml)
+
 > **Threat intelligence, audit, and quarantine for sovereign AI agents — on your box, no SaaS.**
 > Scan code before it runs, screen input before it reaches a model, catch secrets before they
 > leave the repo, seal keys you actually own, and keep an immutable audit trail on your disk.
