@@ -4,7 +4,6 @@ Provides a Flask-based dashboard with live API endpoints backed by
 SecurityDatabase, QuarantineManager, RuntimeMonitor, and ThreatIntelligence.
 """
 
-import json
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +13,7 @@ import psutil
 
 from .database import SecurityDatabase, SecurityEvent
 from .intelligence import ThreatIntelligence
-from .kms import KMS, FileKeyStore, KeyType
+from .kms import KMS, KeyType
 from .monitor import RuntimeMonitor
 from .quarantine import QuarantineManager
 from .scanner import SecurityScanner

@@ -11,8 +11,6 @@ in a chat window. Now it protects everyone.
 
 import os
 import re
-import json
-import hashlib
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime

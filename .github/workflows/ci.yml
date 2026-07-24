@@ -48,6 +48,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install ".[dev]"
 
+      # Flat layout: the package lives at sksecurity/, NOT src/. Lint that path.
+      - name: Ruff lint
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install ruff
+          ruff check sksecurity/
+
       - name: Run pytest
         run: |
           python -m pytest tests/ -v --tb=short \

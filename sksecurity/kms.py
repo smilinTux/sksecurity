@@ -55,8 +55,6 @@ Coordination board task: 9871b893
 """
 
 import base64
-import hashlib
-import json
 import logging
 import os
 import uuid

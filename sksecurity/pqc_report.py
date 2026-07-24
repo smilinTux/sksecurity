@@ -689,7 +689,6 @@ def build_live_report() -> dict:
     # assumes Q0/no-migration, which is now false). State exactly what is true:
     # confidentiality (KEM/at-rest) is hybrid where migrated; identity/signatures
     # stay classical (Phase 2). Never claim global hybrid.
-    qr_surfaces = [s for s in report["surfaces"] if s["quantum_resistant"]]
     g_hybrid = gsum["hybrid"]
     g_total = gsum["total"]
     parts = [
