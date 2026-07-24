@@ -1,5 +1,5 @@
 """SKSecurity Enterprise - Security Database Module"""
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 import json

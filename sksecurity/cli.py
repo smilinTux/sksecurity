@@ -4,13 +4,11 @@ SKSecurity Enterprise Command Line Interface
 Main entry point for all security operations
 """
 
-import os
 import sys
 import click
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from . import __version__, BANNER
 from .ai_client import AIClient
@@ -146,7 +144,7 @@ def dashboard(ctx, host, port, auth, ssl, background):
         config=config
     )
     
-    click.echo(f"🛡️ Starting SKSecurity Dashboard")
+    click.echo("🛡️ Starting SKSecurity Dashboard")
     click.echo(f"📍 URL: {'https' if ssl else 'http'}://{host}:{port}")
     if auth:
         click.echo("🔐 Authentication: Enabled")

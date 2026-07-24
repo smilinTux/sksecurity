@@ -1,5 +1,5 @@
 """SKSecurity Enterprise - Quarantine Management Module"""
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path

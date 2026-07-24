@@ -3,10 +3,8 @@ SKSecurity Scanner - Core Security Scanning Engine
 Multi-layered security analysis for AI agents and skills
 """
 
-import os
 import re
 import json
-import hashlib
 import mimetypes
 from pathlib import Path
 from datetime import datetime
@@ -275,7 +273,7 @@ class SecurityScanner:
                     return True
             
             return False
-        except:
+        except Exception:
             return True  # Assume binary if can't read
     
     def _scan_file(self, file_path: Path) -> List[ThreatMatch]:
