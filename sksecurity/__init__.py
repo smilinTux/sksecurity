@@ -3,34 +3,9 @@ SKSecurity Enterprise - AI Agent Security Platform
 The only security solution AI agents need.
 """
 
-def _detect_version() -> str:
-    """The installed version, or the build-time one, or a marked fallback.
+from ._ver import detect_version
 
-    This was a hardcoded `"1.2.1"` that had to be kept in step with the literal
-    in pyproject.toml by hand. Nobody did: three tags shipped without either
-    being touched, every build produced 1.2.1, and PyPI rejected each one as a
-    duplicate. Two hand-maintained copies of a version is one too many, so both
-    now derive from the git tag.
-
-    Ordered by trustworthiness: installed metadata first (right for anyone who
-    pip-installed us), then the file setuptools-scm writes at build time, then a
-    fallback that is deliberately obvious rather than a plausible-looking number.
-    """
-    try:
-        from importlib.metadata import PackageNotFoundError, version
-
-        return version("sksecurity")
-    except Exception:  # PackageNotFoundError, or running from a source tree
-        pass
-    try:
-        from ._version import version as _v  # type: ignore[import-not-found]
-
-        return _v
-    except Exception:
-        return "0.0.0+unknown"
-
-
-__version__ = _detect_version()
+__version__ = detect_version()
 __author__ = "smilinTux Team + Queen Ara + Neuresthetics"
 __license__ = "GPL-3.0-or-later"
 __description__ = "Enterprise-grade security for AI agent ecosystems"
