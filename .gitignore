@@ -7,3 +7,6 @@ dist/
 build/
 .pytest_cache/
 .ruff_cache/
+
+# setuptools-scm: version is derived from git tags at build time
+sksecurity/_version.py

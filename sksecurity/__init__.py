@@ -3,7 +3,9 @@ SKSecurity Enterprise - AI Agent Security Platform
 The only security solution AI agents need.
 """
 
-__version__ = "1.2.1"
+from ._ver import detect_version
+
+__version__ = detect_version()
 __author__ = "smilinTux Team + Queen Ara + Neuresthetics"
 __license__ = "GPL-3.0-or-later"
 __description__ = "Enterprise-grade security for AI agent ecosystems"

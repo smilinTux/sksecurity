@@ -1,10 +1,20 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=68.0", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sksecurity"
-version = "1.2.1"
+# Derived from the git tag by setuptools-scm, NOT written here.
+#
+# It used to be a literal `version = "1.2.1"`, duplicated in
+# sksecurity/__init__.py. Tags v1.2.2, v1.2.3 and v1.2.4 were all cut and pushed
+# without either copy being bumped, so each release rebuilt 1.2.1 and PyPI
+# rejected the duplicate with a bare `400 Bad Request`. That is why PyPI sat at
+# 1.2.1 from 2026-06-11 while the repo was three tags ahead.
+#
+# The tag is now the single source of truth, which is what the rest of the fleet
+# already does, so `git tag vX.Y.Z` cannot disagree with what gets built.
+dynamic = ["version"]
 description = "Enterprise-grade security for AI agent ecosystems"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -82,3 +92,9 @@ exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 sksecurity = ["data/*.json", "data/*.yml", "templates/*.html", "static/*", "SKILL.md"]
+
+[tool.setuptools_scm]
+# Generated at build time, gitignored. Never commit it: it is rewritten on every
+# build, so a committed copy just goes stale and fights the formatter.
+version_file = "sksecurity/_version.py"
+fallback_version = "0.0.0+unknown"

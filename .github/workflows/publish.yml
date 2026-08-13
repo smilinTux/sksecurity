@@ -28,6 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # setuptools-scm derives the version from the git tag, so the full
+          # history and the tags must be present. A shallow checkout makes it
+          # fall back to 0.0.0+unknown, and PyPI rejects a local version segment.
+          fetch-depth: 0
+          fetch-tags: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
