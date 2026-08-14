@@ -61,6 +61,9 @@ web = [
     "flask>=2.3.0",
     "flask-cors>=4.0.0",
 ]
+pdf = [
+    "reportlab>=3.6.0",
+]
 skcapstone = [
     "skcapstone>=0.6.8",
 ]

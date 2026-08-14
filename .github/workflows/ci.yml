@@ -6,11 +6,9 @@ name: CI
 # Honest exclusions (this repo defines NO pytest markers, so exclusion is by
 # explicit node id / file, documented here rather than hidden behind a fake skip):
 #
-#   * tests/test_truth_engine.py is IGNORED — it imports a private symbol
-#     (`_check_skmemory`) that no longer exists in sksecurity/truth_engine.py,
-#     so it is a hard collection-time ImportError on every runner. This is a
-#     pre-existing broken test, not a flaky one; it is tracked separately and
-#     excluded honestly rather than silently passed.
+#   * tests/test_truth_engine.py used to be IGNORED for importing a private
+#     symbol (`_check_skmemory`) that no longer existed. The stale import was
+#     removed on 2026-08-14, so the file now collects and runs like any other.
 #
 #   * The four "integrated-mode" tests in tests/test_integration_adapter.py
 #     (test_alert_publishes_severity_topic, test_ensure_schedule_registers_intel_refresh,
@@ -36,6 +34,12 @@ jobs:
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # setuptools-scm needs the history and the tags, otherwise the
+          # installed version is 0.0.1.dev1+unknown and `--version` is
+          # meaningless in CI.
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -43,10 +47,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      # web  = Flask, required by tests/test_dashboard_api.py
+      # pdf  = reportlab, required by the PDF branch of tests/test_cli.py
+      # Without these the suite errors at setup instead of testing anything.
       - name: Install package + dev deps
         run: |
           python -m pip install --upgrade pip
-          pip install ".[dev]"
+          pip install ".[dev,web,pdf]"
 
       # Flat layout: the package lives at sksecurity/, NOT src/. Lint that path.
       - name: Ruff lint
@@ -58,7 +65,6 @@ jobs:
       - name: Run pytest
         run: |
           python -m pytest tests/ -v --tb=short \
-            --ignore=tests/test_truth_engine.py \
             --deselect "tests/test_integration_adapter.py::test_alert_publishes_severity_topic" \
             --deselect "tests/test_integration_adapter.py::test_ensure_schedule_registers_intel_refresh" \
             --deselect "tests/test_integration_adapter.py::test_register_self_writes_registry" \

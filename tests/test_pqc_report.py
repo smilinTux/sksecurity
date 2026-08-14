@@ -9,6 +9,8 @@ Covers:
 
 from __future__ import annotations
 
+import re
+
 from sksecurity.pqc_report import build_report, format_report
 
 
@@ -265,13 +267,35 @@ def test_capauth_identity_never_quantum_resistant():
     assert ident["status"] == "classical"
 
 
+def _asserted(claim: str, phrase: str) -> bool:
+    """True if `phrase` is *asserted* in `claim` rather than disclaimed.
+
+    An honest claim is allowed to name the thing it is denying ("Not an
+    end-to-end quantum-resistance claim"). A plain substring test flags those
+    disclaimers as overclaims, so ignore an occurrence that a negator governs.
+    """
+    negators = ("not", "never", "no", "nor", "without")
+    for match in re.finditer(re.escape(phrase), claim):
+        preceding = claim[:match.start()].split()[-6:]
+        if not any(word.strip(",.;:-") in negators for word in preceding):
+            return True
+    return False
+
+
 def test_project_report_honest_claim_not_global():
     for proj in known_projects():
         rpt = build_project_report(proj, live=True)
         claim = rpt["honest_claim"].lower()
         for forbidden in ("quantum-proof", "unbreakable", "quantum-safe",
                           "end-to-end quantum"):
-            assert forbidden not in claim, (proj, forbidden)
+            assert not _asserted(claim, forbidden), (proj, forbidden)
+
+
+def test_honest_claim_gate_still_catches_a_real_overclaim():
+    """Negative control: the negation allowance must not disarm the gate."""
+    assert _asserted("sksecurity is quantum-proof and unbreakable", "quantum-proof")
+    assert _asserted("provides end-to-end quantum resistance", "end-to-end quantum")
+    assert not _asserted("this is not an end-to-end quantum claim", "end-to-end quantum")
 
 
 def test_project_report_summary_consistent():
