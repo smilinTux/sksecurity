@@ -56,11 +56,12 @@ jobs:
           pip install ".[dev,web,pdf]"
 
       # Flat layout: the package lives at sksecurity/, NOT src/. Lint that path.
+      # No `pip install ruff` here: it pulled the LATEST ruff on every run,
+      # ignoring the bounded version in the dev extra installed above, so
+      # ruff 0.16's wider defaults turned this gate red with no code change.
       - name: Ruff lint
         if: matrix.python-version == '3.12'
-        run: |
-          pip install ruff
-          ruff check sksecurity/
+        run: ruff check sksecurity/
 
       - name: Run pytest
         run: |
