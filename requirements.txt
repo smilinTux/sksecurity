@@ -30,6 +30,7 @@ watchdog>=3.0.0
 email-validator>=2.0.0
 
 # PDF report generation (audit --format pdf)
+# Optional at install time: pyproject exposes this as the [pdf] extra.
 reportlab>=3.6.0
 
 # Development and testing (dev-only)

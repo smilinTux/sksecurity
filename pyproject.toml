@@ -61,6 +61,9 @@ web = [
     "flask>=2.3.0",
     "flask-cors>=4.0.0",
 ]
+pdf = [
+    "reportlab>=3.6.0",
+]
 skcapstone = [
     "skcapstone>=0.6.8",
 ]
@@ -68,7 +71,9 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "black>=23.0",
-    "ruff>=0.1",
+    # Bounded: an unbounded `ruff>=0.1` let a minor release change the default
+    # rule set under CI and turn a green gate red with no code change.
+    "ruff>=0.15,<0.17",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
 ]
@@ -81,6 +86,22 @@ Issues = "https://github.com/smilinTux/sksecurity/issues"
 [project.scripts]
 sksecurity = "sksecurity.cli:main"
 sksecurity-mcp = "sksecurity.mcp_server:main"
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+# Selected EXPLICITLY. With no config, `ruff check` uses ruff's own default
+# rule set, which is not stable across releases: the dev extra asked for
+# `ruff>=0.1` and the CI step reinstalled ruff unpinned on top, so it picked up
+# 0.16, whose defaults added UP/BLE/FA/ISC. The Ruff lint step went red with
+# 365 findings and no change to this repo, which is why py3.12 failed while
+# py3.11 (which does not run lint) reached pytest.
+#
+# This is the set sksecurity has actually been enforcing (ruff's pre-0.16
+# default), written down so it cannot drift again. Widening to UP/BLE is worth
+# doing but is a real refactor and belongs in its own change.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

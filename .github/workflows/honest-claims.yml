@@ -21,12 +21,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # setuptools-scm needs history + tags, or the install resolves to
+          # 0.0.1.dev1+unknown and `--version` means nothing.
+          fetch-depth: 0
+          fetch-tags: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install sksecurity
+      - name: Install sksecurity (bare, no extras)
+        # Deliberately NO extras. This gate is the one place that exercises the
+        # exact dependency closure a `pip install sksecurity` user gets, which
+        # is how the reportlab import bug surfaced. Installing .[pdf] here
+        # would hide the next one.
         run: pip install -e .
       - name: Run no-overclaim gate
         run: sksecurity claims scan .
+      - name: Install pytest
+        # Separate step so the CLI invocation above runs against the bare
+        # install. `pip install -e .` never brought pytest in, so the test step
+        # below could only ever fail with "No module named pytest" — masked
+        # until now because the step above crashed first.
+        run: pip install pytest
       - name: Honest-claims unit tests
         run: python -m pytest tests/test_honest_claims.py -v --tb=short

@@ -3,7 +3,14 @@ PDF audit report generation for SKSecurity.
 
 Uses reportlab to produce a structured, branded PDF audit report from
 the data collected by the `sksecurity audit` command.
+
+reportlab is an optional dependency (``pip install sksecurity[pdf]``). This
+module must stay importable without it, because ``sksecurity.cli`` imports it
+unconditionally. ``from __future__ import annotations`` keeps the reportlab
+names in the signatures below from being evaluated at import time.
 """
+
+from __future__ import annotations
 
 from io import BytesIO
 from typing import Any, Dict
@@ -33,6 +40,17 @@ _MID_GREY = "#555555"
 _LIGHT_GREY = "#cccccc"
 _ROW_ODD = "#f7f9fc"
 
+_MISSING_REPORTLAB = (
+    "reportlab is required for PDF export. "
+    "Install it with: pip install sksecurity[pdf]"
+)
+
+
+def _require_reportlab() -> None:
+    """Raise a clear ImportError if reportlab is not installed."""
+    if not REPORTLAB_AVAILABLE:
+        raise ImportError(_MISSING_REPORTLAB)
+
 
 def generate_audit_pdf(audit_data: Dict[str, Any]) -> bytes:
     """Generate a PDF audit report from audit data collected by `sksecurity audit`.
@@ -47,11 +65,7 @@ def generate_audit_pdf(audit_data: Dict[str, Any]) -> bytes:
     Raises:
         ImportError: If reportlab is not installed.
     """
-    if not REPORTLAB_AVAILABLE:
-        raise ImportError(
-            "reportlab is required for PDF export. "
-            "Install it with: pip install reportlab"
-        )
+    _require_reportlab()
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -204,7 +218,13 @@ def generate_audit_pdf(audit_data: Dict[str, Any]) -> bytes:
 
 
 def _make_table(data: list) -> Table:
-    """Build a styled two-column reportlab Table."""
+    """Build a styled two-column reportlab Table.
+
+    Raises:
+        ImportError: If reportlab is not installed.
+    """
+    _require_reportlab()
+
     t = Table(data, colWidths=["40%", "60%"])
     t.setStyle(
         TableStyle(

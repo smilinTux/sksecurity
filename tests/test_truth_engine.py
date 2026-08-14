@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sksecurity.truth_engine import TruthEngine, TruthVerdict, _check_skmemory
+from sksecurity.truth_engine import TruthEngine, TruthVerdict
 
 
 class TestTruthVerdict:
