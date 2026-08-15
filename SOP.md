@@ -147,9 +147,19 @@ the secret-guard self-scan (this repo must not leak its own secrets).
 
 ## 5. Release / Deploy
 
-**Library / MCP / Node wrapper:** bump `version` in `pyproject.toml`, add a
-`CHANGELOG.md` entry, run the test gate, `python -m build`, tag `vX.Y.Z`, push, then
-publish (PyPI / npm) per the maintainer flow.
+**Library / MCP / Node wrapper: the git tag is the version.** `pyproject.toml` declares
+`dynamic = ["version"]` and carries **no** `version = ` field; setuptools-scm derives it
+from the tag and writes `sksecurity/_version.py` at build time (gitignored, never
+committed). So the release flow is: add a `CHANGELOG.md` entry, run the test gate,
+`git tag vX.Y.Z`, push the tag, then `python -m build` and publish (PyPI / npm) per the
+maintainer flow.
+
+**Do not reintroduce a hardcoded `version`.** The comment at `pyproject.toml:7-16`
+records why: a literal `version = "1.2.1"` was duplicated in `sksecurity/__init__.py`,
+tags v1.2.2, v1.2.3 and v1.2.4 were each cut without bumping either copy, so every
+release rebuilt 1.2.1 and PyPI rejected the duplicate with a bare `400 Bad Request`.
+PyPI sat at 1.2.1 from 2026-06-11 while the repo was three tags ahead. The evidence
+block at the end of this file fails if a static `version` field reappears.
 
 **Dashboard / MCP service (deploy):**
 
@@ -164,15 +174,54 @@ flowchart TD
     style VERIFY fill:#51cf66,stroke:#2b8a3e,stroke-width:2px
 ```
 
+### Scheduled audit on a sovereign node (runs code OUTSIDE this repo)
+
+A node may carry a user unit pair `sksecurity-audit.service` + `sksecurity-audit.timer`
+(`OnCalendar=*-*-* 06:00:00`, `Persistent=true`). Do not assume it exercises this
+repo: its `ExecStart` runs `~/clawd/security/scripts/security_cron.py`, a script that
+lives outside SKSecurity and imports nothing from the `sksecurity` package. The unit
+name is the only thing tying it to this repo. This repo ships **no** systemd unit of
+its own, so nothing here is verified by that timer being green.
+
 ### Front-end / Exposure
 
 Per [sk-standards `UNIFIED_INGRESS_STANDARD.md`](https://github.com/smilinTux/sk-standards/blob/main/standards/UNIFIED_INGRESS_STANDARD.md):
 
-**N/A — no network surface.** sksecurity is a CLI / Python library + MCP (stdio)
-secret-scanner; it serves no public `:443` route and binds no listener. The
-`dashboard_port` config knob (default `8888`, `sksecurity/config.py`) is an unimplemented
-placeholder — no HTTP server backs it. If a dashboard is ever shipped it MUST bind
-`127.0.0.1` / tailnet behind a Tier 0 Funnel path-route, never a public port.
+**Tier 0 / no public route. No listener is up in practice, but this repo is NOT
+listener-free code.** Read the whole subsection before repeating "library, therefore no
+network surface": that shorthand was wrong in an earlier revision of this SOP, and this
+repo is the fleet's honest-claims auditor.
+
+- **Shipped surface:** a CLI (`sksecurity`) plus an MCP server (`sksecurity-mcp`) that
+  speaks **stdio**, not a socket. No public `:443` route, no reverse-proxy route, no
+  Funnel path. Importing the package binds nothing.
+- **`sksecurity/dashboard.py` is a real Flask application, not a placeholder.**
+  `DashboardServer.__init__` constructs `Flask(__name__)` (`dashboard.py:47`) and wraps
+  it with `CORS` (`dashboard.py:48`), registers **16** routes (including `/api/health`,
+  `/api/kms/status`, `/api/kms/keys`, `/api/kms/rotate`, `/api/scan`,
+  `/api/quarantine/restore`), and `start(blocking=True)` calls
+  `self.app.run(host=self.host, port=self.port)` (`dashboard.py:316`); the non-blocking
+  branch runs the same `app.run` on a daemon thread. Default port `8888`, default host
+  `localhost` (`dashboard.py:27-28`; the config knob default is
+  `sksecurity/config.py:40`, read back by the `dashboard_port` property at
+  `config.py:195`).
+- **A second, standalone HTTP server exists in `scripts/`:**
+  `scripts/security_dashboard.py:370` binds `HTTPServer(('localhost', 8888), ...)`. It
+  is a loose script, not a console entry point, so it only listens if an operator runs
+  it by hand.
+- **Why nothing listens today: the `sksecurity dashboard` CLI command is broken.** It is
+  the only packaged path to `DashboardServer`, and it cannot construct or start one. See
+  [Known defects](#known-defects-open) in section 8. The honest conclusion ("no listener")
+  holds; the reason is a broken entry point, **not** absent code.
+
+**Before that entry point is ever fixed**, note that the Flask app has **no
+authentication of any kind**: there is no auth decorator, no `before_request` hook and
+no token check anywhere in `dashboard.py`, so `/api/kms/rotate`, `/api/scan` and
+`/api/quarantine/restore` would all be reachable by anyone who can reach the port. The
+broken CLI already advertises `sksecurity dashboard --host 0.0.0.0 --ssl` in its own
+`--help` examples (`cli.py:136`). Any revival MUST bind `127.0.0.1` or the tailnet
+behind a Tier 0 Funnel path-route, never a public port, and MUST gain authentication in
+the same change.
 
 ---
 
@@ -183,7 +232,7 @@ placeholder — no HTTP server backs it. If a dashboard is ever shipped it MUST 
 | Knob | Where | Effect |
 |---|---|---|
 | `risk_threshold` / `auto_quarantine` | `sksecurity.yml` | scan verdict thresholds + isolation |
-| `dashboard_port` | `sksecurity.yml` | web dashboard port (default 8888) |
+| `dashboard_port` | `sksecurity.yml` | port the Flask dashboard *would* bind (default 8888, `config.py:40`). Inert today: the `sksecurity dashboard` command that reads it is broken, see section 8 |
 | `threat_sources[]` | `sksecurity.yml` | external IOC feeds (opt-in) |
 | `SKSECURITY_AI` / `--ai` | env / flag | enable local-LLM verdict explanation |
 | `SKSECURITY_AI_URL` | env | Ollama / OpenAI-compatible endpoint (default `:11434`) |
@@ -197,8 +246,19 @@ placeholder — no HTTP server backs it. If a dashboard is ever shipped it MUST 
 
 ## 7. API / Reference
 
-**CLI:** `scan · screen · guard · monitor · quarantine · update · audit · status ·
-init · dashboard` (see the README for full examples).
+**CLI** (`sksecurity`, `sksecurity/cli.py`):
+
+| Group | Commands |
+|---|---|
+| scan / screen | `scan`, `screen`, `monitor`, `quarantine`, `update`, `audit`, `init`, `status` |
+| secret guard | `guard scan`, `guard staged`, `guard install`, `guard text` |
+| honest claims | `claims scan`, `claims text` (the no-overclaim auditor, also run in CI) |
+| PQC evidence | `pqc-report`, `pqc-stacks`, `pqc-snapshot`, `pqc-dashboard`, `pqc-posture` |
+| broken | `dashboard` (does not run, see section 8) |
+
+The self-report surface (this repo's reason to exist as the fleet evidence engine) is
+`sksecurity status` plus the `pqc-*` family; the enforcement surface is
+`sksecurity claims scan`. See the README for full examples.
 
 **MCP tools** (`sksecurity-mcp`, stdio):
 
@@ -222,10 +282,46 @@ init · dashboard` (see the README for full examples).
 | scan exits non-zero unexpectedly | `risk_score` over `risk_threshold` | review the `ThreatMatch` list; lower threshold or `--no-quarantine` for triage |
 | secret guard flags a test fixture | FP in test context | confirm it's truly a fixture; the guard already reduces test-context FPs — refine the pattern, don't disable |
 | `--ai` does nothing / errors | no Ollama / wrong endpoint | set `SKSECURITY_AI_URL` to a running Ollama or OpenAI-compatible server; AI is optional |
-| dashboard won't bind | port in use | change `dashboard_port` in `sksecurity.yml` |
+| `sksecurity dashboard` fails immediately | the command is broken, not your config | known defect, see below. Changing `dashboard_port` will not help |
 | MCP client can't see tools | server not launched | run `sksecurity-mcp`; add it to the client's `mcpServers` |
 | KMS unlock fails | wrong master passphrase / moved data-root | the scrypt master seal needs the original passphrase; restore `~/.sksecurity/` |
 | claim-audit flags your docs | a forbidden crypto word present | replace with "quantum-resistant" / "post-quantum"; cite surface + FIPS # + hybrid-vs-classical |
+| `sksecurity-audit.timer` is green but nothing here ran | expected | that unit runs `~/clawd/security/scripts/security_cron.py`, outside this repo. See section 5 |
+
+<a id="known-defects-open"></a>
+
+### Known defects (open)
+
+**1. `sksecurity dashboard` cannot start. It fails twice over.**
+
+`cli.py:139-145` constructs the server as:
+
+```python
+server = DashboardServer(host=host, port=port, auth_enabled=auth,
+                         ssl_enabled=ssl, config=config)
+```
+
+but `DashboardServer.__init__` (`dashboard.py:25-35`) accepts only
+`port, host, db, quarantine, monitor, intel, kms, scanner`. None of `auth_enabled`,
+`ssl_enabled` or `config` is a parameter, so the call raises `TypeError` before a server
+object exists. Reproduce without installing anything:
+
+```bash
+python3 -c "import inspect; from sksecurity.dashboard import DashboardServer; \
+print(inspect.signature(DashboardServer.__init__)); \
+print(hasattr(DashboardServer,'run'), hasattr(DashboardServer,'run_background'))"
+# -> the signature has no auth_enabled/ssl_enabled/config, and prints: False False
+```
+
+Even past that, `cli.py:154` calls `server.run_background()` and `cli.py:158` calls
+`server.run()`. Neither method exists: `DashboardServer` defines only `start`, `stop`
+and `get_url`. The `--auth` and `--ssl` flags are likewise decorative, since nothing in
+`dashboard.py` implements either.
+
+Fixing this is a **code** change and is deliberately out of scope for a docs pass. Until
+it lands, treat the Flask app and its unauthenticated `/api/kms/*` routes as dormant
+code, not as a shipped service. The evidence block at the end of this file asserts the
+defect is still present, so this section cannot silently go stale after a fix.
 
 ---
 
@@ -235,7 +331,14 @@ init · dashboard` (see the README for full examples).
   (scrypt → HKDF-SHA256 → AES-256-GCM, DEK `os.urandom(32)`) holds **no asymmetric
   key material**; there is no Shor-vulnerable surface to migrate. Caveat: a PGP master
   root would re-introduce one and must then migrate to hybrid/SLH-DSA.
-- **VERSION_LIFECYCLE phase:** Active (v2). **SemVer:** `1.2.1` (`pyproject.toml`).
+- **VERSION_LIFECYCLE phase:** Active (v2). **SemVer: not written down here on purpose.**
+  `pyproject.toml` sets `dynamic = ["version"]` and has no `version` field; the version
+  comes from the newest `vX.Y.Z` git tag via setuptools-scm, which writes
+  `sksecurity/_version.py` at build time. Read it from the tag
+  (`git describe --tags --abbrev=0`) or from an installed build
+  (`python -c "import sksecurity; print(sksecurity.__version__)"`), never from this
+  document. An earlier revision of this SOP quoted `1.2.1`, which was already four tags
+  stale. See section 5 for why hardcoding it broke releases.
 - **CRYPTOGRAPHY_STANDARD compliance:** SKSecurity both conforms to and **enforces**
   the standard — it is the honest-claim auditor and the runtime self-report producer
   (per-channel KEM/sig/cipher + hybrid-vs-classical, citing FIPS 203/204/205). Hybrid
@@ -246,3 +349,27 @@ init · dashboard` (see the README for full examples).
 ---
 
 **SK = staycuriousANDkeepsmilin 🐧** — *sksecurity: same disciplines, your hardware, your seal.*
+
+<!-- docs-evidence
+verified: 2026-08-15
+checks:
+  - name: both console entry points still resolve as documented
+    run: grep -qxF 'sksecurity = "sksecurity.cli:main"' pyproject.toml && grep -qxF 'sksecurity-mcp = "sksecurity.mcp_server:main"' pyproject.toml
+  - name: version stays setuptools-scm derived, no hardcoded version field
+    run: grep -qxF 'dynamic = ["version"]' pyproject.toml && ! grep -qE "^version *=" pyproject.toml
+  - name: dashboard.py is a real Flask app that calls app.run (section 5 claim)
+    run: grep -qxF "        self.app = Flask(__name__)" sksecurity/dashboard.py && grep -qxF "            self.app.run(host=self.host, port=self.port)" sksecurity/dashboard.py
+  - name: documented dashboard_port default 8888 matches config.py
+    run: grep -qxF "            'dashboard_port': 8888," sksecurity/config.py
+  - name: documented KMS key store and audit log paths match kms.py
+    run: grep -qF 'Path("~/.sksecurity/kms/keys")' sksecurity/kms.py && grep -qF 'Path("~/.sksecurity/kms/audit.log")' sksecurity/kms.py
+  - name: documented data root ~/.sksecurity matches config.py
+    run: grep -qxF "    DEFAULT_CONFIG_DIR = Path.home() / '.sksecurity'" sksecurity/config.py
+  - name: the documented dashboard-CLI defect is still present (fires when fixed)
+    run: grep -qxF "        auth_enabled=auth," sksecurity/cli.py && ! grep -qE "auth_enabled|def run_background|def run\(" sksecurity/dashboard.py
+  - name: honest-claims gate still runs the scanner and is not neutered by || true
+    run: grep -qxF "        run: sksecurity claims scan ." .github/workflows/honest-claims.yml && ! grep -qF "|| true" .github/workflows/honest-claims.yml
+  - name: sksecurity claims scan subcommand still exists in the CLI
+    run: grep -qxF "@claims.command(name='scan')" sksecurity/cli.py
+-->
+
