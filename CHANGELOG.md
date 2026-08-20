@@ -6,6 +6,12 @@ All notable changes to `sksecurity` are documented here. The format is based on
 
 ## [Unreleased]
 
+### Operations
+
+- Add `scripts/install-runtime.sh` and SOP ownership rules for the isolated
+  `~/.venvs/sksecurity` operational runtime. The shared SK Python environment is
+  no longer an installation target for the CLI, MCP server, or optional extras.
+
 ### Fixed (docs)
 
 - **`SOP.md` section 5 gave a FALSE reason for "no network surface."** It claimed the
