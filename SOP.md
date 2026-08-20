@@ -115,11 +115,27 @@ flowchart TD
 ## 3. Build
 
 ```bash
-pip install -e ".[web,dev]"      # core + dashboard + dev tooling
+python3.12 -m venv .venv
+.venv/bin/pip install -e ".[web,dev]" # repository-local development environment
 python -m pip install --upgrade build && python -m build   # wheel/sdist
 docker build -t sksecurity docker/   # optional container (see docker/)
 npm install @smilintux/sksecurity    # Node wrapper (shells to the Python CLI)
 ```
+
+Never install the operational CLI or MCP server into the shared SK stack
+environment. On a sovereign node, install or refresh the owned runtime with:
+
+```bash
+scripts/install-runtime.sh
+~/.venvs/sksecurity/bin/python -m pip check
+readlink -f ~/.local/bin/sksecurity
+```
+
+The installer owns `~/.venvs/sksecurity`, installs the `web`, `pdf`, and
+`skcapstone` runtime extras, and publishes only CLI symlinks in `~/.local/bin`.
+Use `SKSECURITY_VENV`, `SKSECURITY_PYTHON`, or `SKSECURITY_REPO` to override its
+defaults. Development tools remain in the repository-local `.venv` and do not
+enter the operational runtime.
 
 ---
 
@@ -162,6 +178,10 @@ PyPI sat at 1.2.1 from 2026-06-11 while the repo was three tags ahead. The evide
 block at the end of this file fails if a static `version` field reappears.
 
 **Dashboard / MCP service (deploy):**
+
+Run `scripts/install-runtime.sh` first and configure any unit `ExecStart` to use
+`%h/.venvs/sksecurity/bin/sksecurity-mcp`; do not use a shared environment's
+Python or console script.
 
 ```mermaid
 flowchart TD
@@ -372,4 +392,3 @@ checks:
   - name: sksecurity claims scan subcommand still exists in the CLI
     run: grep -qxF "@claims.command(name='scan')" sksecurity/cli.py
 -->
-
