@@ -11,6 +11,8 @@ All notable changes to `sksecurity` are documented here. The format is based on
 - Add `scripts/install-runtime.sh` and SOP ownership rules for the isolated
   `~/.venvs/sksecurity` operational runtime. The shared SK Python environment is
   no longer an installation target for the CLI, MCP server, or optional extras.
+- Make the runtime installer discover an existing fleet-managed Python when an
+  unversioned host default is newer than the node's supported runtime.
 
 ### Fixed (docs)
 

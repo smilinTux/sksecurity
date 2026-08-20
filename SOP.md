@@ -134,8 +134,11 @@ readlink -f ~/.local/bin/sksecurity
 The installer owns `~/.venvs/sksecurity`, installs the `web`, `pdf`, and
 `skcapstone` runtime extras, and publishes only CLI symlinks in `~/.local/bin`.
 Use `SKSECURITY_VENV`, `SKSECURITY_PYTHON`, or `SKSECURITY_REPO` to override its
-defaults. Development tools remain in the repository-local `.venv` and do not
-enter the operational runtime.
+defaults. Interpreter discovery prefers the existing owned runtime, then the
+fleet's isolated `skops` Python, then `python3.12` and `python3`; pin it with
+`SKSECURITY_PYTHON` when node policy requires an exact interpreter. Development
+tools remain in the repository-local `.venv` and do not enter the operational
+runtime.
 
 ---
 
