@@ -17,6 +17,7 @@ def no_av(monkeypatch, request):
     if request.node.name.startswith(("test_av_scan", "test_eicar")):
         return
     monkeypatch.setattr(filescreen, "av_scan", lambda p: ("unavailable", None))
+    monkeypatch.setattr(filescreen, "av_scan_batch", lambda ps: ("unavailable", {}))
 
 
 def mk(tmp_path, name, data=b"hello"):
@@ -133,6 +134,19 @@ def test_av_scan_parses_clamscan(monkeypatch):
     monkeypatch.setattr(filescreen.shutil, "which", lambda n: "/usr/bin/clamscan" if n == "clamscan" else None)
     monkeypatch.setattr(filescreen.subprocess, "run", lambda *a, **k: P())
     assert filescreen.av_scan("/x/f") == ("clamscan", "Win.Test.EICAR_HDB-1")
+
+
+def test_screen_files_single_av_pass(tmp_path, monkeypatch):
+    calls = []
+
+    def batch(paths):
+        calls.append(list(paths))
+        return "clamscan", {paths[1]: "Sig.X"}
+    monkeypatch.setattr(filescreen, "av_scan_batch", batch)
+    a, b = mk(tmp_path, "a.txt"), mk(tmp_path, "b.txt")
+    res = filescreen.screen_files([a, b])
+    assert len(calls) == 1
+    assert [r.verdict.value for r in res] == ["safe", "malicious"]
 
 
 def test_av_scan_none_installed(monkeypatch):

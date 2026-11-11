@@ -89,32 +89,47 @@ def _clamd_socket_exists() -> bool:
     return any(os.path.exists(s) for s in _CLAMD_SOCKETS)
 
 
-def av_scan(path: str) -> Tuple[str, Optional[str]]:
-    """Scan with ClamAV. Returns (engine, signature_or_None).
+def _run_av(paths: List[str]) -> Tuple[str, Dict[str, str]]:
+    """One AV invocation per chunk of paths (one signature load, not one per file).
 
-    engine is "clamdscan", "clamscan" or "unavailable" (also on scan error).
+    Returns (engine, {path: signature}) for infected files only. engine is
+    "clamdscan", "clamscan" or "unavailable" (also when every engine errors).
     """
-    candidates: List[Tuple[str, List[str]]] = []
+    engines: List[Tuple[str, List[str]]] = []
     if shutil.which("clamdscan") and _clamd_socket_exists():
-        candidates.append(("clamdscan", ["clamdscan", "--no-summary", "--infected", "--fdpass", "--", path]))
+        engines.append(("clamdscan", ["clamdscan", "--no-summary", "--infected", "--fdpass"]))
     if shutil.which("clamscan"):
-        candidates.append(("clamscan", ["clamscan", "--no-summary", "--infected", "--", path]))
-    for engine, cmd in candidates:
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=AV_TIMEOUT_S)
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if proc.returncode == 1:
-            sig = ""
+        engines.append(("clamscan", ["clamscan", "--no-summary", "--infected"]))
+    for engine, base in engines:
+        hits: Dict[str, str] = {}
+        ok = True
+        for i in range(0, len(paths), 200):
+            chunk = paths[i:i + 200]
+            try:
+                proc = subprocess.run(base + ["--"] + chunk, capture_output=True,
+                                      text=True, timeout=AV_TIMEOUT_S)
+            except (OSError, subprocess.SubprocessError):
+                ok = False
+                break
+            if proc.returncode not in (0, 1):
+                ok = False  # 2 = scan error: try the next engine
+                break
             for line in proc.stdout.splitlines():
-                if line.rstrip().endswith("FOUND"):
-                    sig = line.rsplit(":", 1)[-1].replace("FOUND", "").strip()
-                    break
-            return engine, sig or "unknown signature"
-        if proc.returncode == 0:
-            return engine, None
-        # returncode 2 = scan error: try the next engine
-    return "unavailable", None
+                line = line.rstrip()
+                if line.endswith(" FOUND") and ": " in line:
+                    path, sig = line[: -len(" FOUND")].rsplit(": ", 1)
+                    hits[path] = sig.strip() or "unknown signature"
+            if proc.returncode == 1 and not hits:
+                hits[chunk[0]] = "unknown signature"
+        if ok:
+            return engine, hits
+    return "unavailable", {}
+
+
+def av_scan(path: str) -> Tuple[str, Optional[str]]:
+    """Scan one file with ClamAV. Returns (engine, signature_or_None)."""
+    engine, hits = _run_av([path])
+    return engine, (hits.get(path) or next(iter(hits.values()), None))
 
 
 def _finding(cat: ThreatCategory, sev: str, conf: float, desc: str,
@@ -151,7 +166,7 @@ def _check_zip(path: str, screener: EmailScreener) -> List[ScreeningFinding]:
     return out
 
 
-def screen_file(path: str) -> FileVerdict:
+def screen_file(path: str, _av: Optional[Tuple[str, Optional[str]]] = None) -> FileVerdict:
     """Screen one file. Read-only: the file is never modified, moved or deleted."""
     screener = EmailScreener()
     findings: List[ScreeningFinding] = []
@@ -169,7 +184,7 @@ def screen_file(path: str) -> FileVerdict:
     base = os.path.basename(path)
     ext = _ext(base)
 
-    engine, sig = av_scan(path)
+    engine, sig = _av if _av is not None else av_scan(path)
     if sig is not None:
         findings.append(_finding(
             ThreatCategory.MALWARE_PAYLOAD, "CRITICAL", 0.99,
@@ -214,4 +229,12 @@ def expand_paths(paths: Iterable[str]) -> List[str]:
 
 
 def screen_files(paths: Iterable[str]) -> List[FileVerdict]:
-    return [screen_file(p) for p in expand_paths(paths)]
+    """Screen many files with a single AV pass."""
+    files = expand_paths(paths)
+    readable = [p for p in files if os.path.isfile(p)]
+    engine, hits = av_scan_batch(readable) if readable else ("unavailable", {})
+    return [screen_file(p, _av=(engine, hits.get(p))) for p in files]
+
+
+def av_scan_batch(paths: List[str]) -> Tuple[str, Dict[str, str]]:
+    return _run_av(paths)
