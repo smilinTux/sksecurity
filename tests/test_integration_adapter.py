@@ -22,7 +22,8 @@ def home(tmp_path, monkeypatch):
     """Sandbox skcapstone's shared home at a temp dir for this test."""
     monkeypatch.setenv("SKCAPSTONE_HOME", str(tmp_path))
     monkeypatch.delenv("SK_STANDALONE", raising=False)
-    import skcapstone
+    # skcapstone is a sovereign sibling, not on PyPI: skip on public runners.
+    skcapstone = pytest.importorskip("skcapstone")
 
     monkeypatch.setattr(skcapstone, "AGENT_HOME", str(tmp_path))
     return tmp_path
