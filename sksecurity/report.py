@@ -9,6 +9,10 @@ ITIL reporter (docs/sweeps/reporting.md), modelled on skcapstone
   rolled up;
 * medium and low findings roll up into ONE open sev4 incident per
   (sweep, host), updated in place;
+* a per-(sweep, host) BASELINE of accepted findings (``sweep NAME --baseline``)
+  is filed as ONE sev3 backlog incident; later runs file per-finding incidents
+  only for fingerprints outside the baseline and append a "fixed" event to the
+  backlog incident as accepted findings disappear;
 * an open finding not seen in the run gets a "not seen" event, never an
   auto-close;
 * one sk-alert per run, not per finding;
@@ -22,6 +26,7 @@ default) touches nothing at all.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import socket
@@ -42,6 +47,121 @@ _NOT_SEEN = "not seen in sweep at"
 _OPEN = {"detected", "acknowledged", "investigating", "escalated"}
 #: Classes about the sweep itself, not a finding in the estate.
 _META_TRUNCATED = "sweep.truncated"
+BACKLOG_TOP_LOCATIONS = 20
+
+
+def _is_meta(f: Finding) -> bool:
+    """Findings about the sweep run itself (tool missing, truncated): never baselined."""
+    return f.klass.startswith(("sweep.", "tool."))
+
+
+# ---------------------------------------------------------------- baseline --
+
+def _state_dir() -> Path:
+    """``SKSECURITY_STATE_DIR`` wins (tests), else ``~/.local/state/sksecurity``."""
+    v = os.environ.get("SKSECURITY_STATE_DIR")
+    return Path(v).expanduser() if v else Path("~/.local/state/sksecurity").expanduser()
+
+
+def baseline_path(sweep: str) -> Path:
+    """Per-sweep baseline file. State is per host by construction (local dir)."""
+    return _state_dir() / f"baseline-{sweep}.json"
+
+
+def load_baseline(sweep: str) -> Dict[str, Dict[str, str]]:
+    """fingerprint -> {klass, severity, first_seen}; empty when there is none."""
+    try:
+        data = json.loads(baseline_path(sweep).read_text(encoding="utf-8"))
+        fps = data.get("findings")
+        return fps if isinstance(fps, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_baseline(sweep: str, fps: Dict[str, Dict[str, str]], host: str) -> Path:
+    """Atomic 0600 write. Fingerprints, klass, severity, first_seen only."""
+    path = baseline_path(sweep)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump({"sweep": sweep, "host": host, "updated": _now(), "findings": fps},
+                  fh, indent=0, sort_keys=True)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+    return path
+
+
+def _counts_text(items: List[Dict[str, str]]) -> List[str]:
+    by_klass: Dict[str, int] = {}
+    by_sev: Dict[str, int] = {}
+    for it in items:
+        by_klass[it["klass"]] = by_klass.get(it["klass"], 0) + 1
+        by_sev[it["severity"]] = by_sev.get(it["severity"], 0) + 1
+    lines = ["by severity: " + ", ".join(
+        f"{k}={by_sev[k]}" for k in sorted(by_sev, key=lambda x: _SEV_RANK.get(x, 9)))]
+    lines.append("by class: " + ", ".join(
+        f"{k}={v}" for k, v in sorted(by_klass.items(), key=lambda kv: (-kv[1], kv[0]))))
+    return lines
+
+
+def _backlog_incident(open_incs: list, sweep: str, host: str):
+    for inc in open_incs:
+        tags = set(inc.tags)
+        if {"sksecurity", f"sweep:{sweep}", f"host:{host}", "backlog"} <= tags:
+            return inc
+    return None
+
+
+def record_baseline(findings: List[Finding], sweep: str, dry_run: bool = True) -> Dict[str, Any]:
+    """Accept the current findings as the backlog for (sweep, host).
+
+    Always writes the local baseline file (that is the point of the flag);
+    files ONE sev3 backlog incident per (sweep, host) unless ``dry_run``. A
+    re-baseline keeps ``first_seen`` of fingerprints already accepted and
+    appends an event to the open backlog incident instead of filing another.
+    """
+    host = socket.gethostname()
+    items = [f for f in findings if not _is_meta(f)]
+    old = load_baseline(sweep)
+    now = _now()
+    fps = {f.fingerprint: {"klass": f.klass, "severity": f.severity,
+                           "first_seen": old.get(f.fingerprint, {}).get("first_seen", now)}
+           for f in items}
+    path = _write_baseline(sweep, fps, host)
+    out: Dict[str, Any] = {"sweep": sweep, "host": host, "accepted": len(fps),
+                           "baseline_file": str(path), "dry_run": dry_run, "filed": [],
+                           "partial": any(f.klass == _META_TRUNCATED for f in findings)}
+    if dry_run:
+        return out
+    mgr = _manager()
+    if mgr is None:
+        out["error"] = "itil-unavailable"
+        return out
+    ranked = sorted(items, key=_sort_key)
+    body = [f"{len(fps)} accepted findings baselined at {now} on {host}."]
+    body += _counts_text(list(fps.values())) if fps else []
+    body.append(f"top {min(BACKLOG_TOP_LOCATIONS, len(ranked))} locations:")
+    body += [f"[{f.severity}] {f.klass} {f.location}" for f in ranked[:BACKLOG_TOP_LOCATIONS]]
+    if out["partial"]:
+        body.append("note: the sweep run was partial (time budget); re-baseline after a full run.")
+    text = "\n".join(body)
+    try:
+        inc = _backlog_incident(_open_incidents(mgr), sweep, host)
+        if inc is None:
+            inc = mgr.create_incident(
+                title=f"sksecurity {sweep} backlog on {host}: {len(fps)} accepted findings",
+                severity="sev3", source="sksecurity", affected_services=[f"sksecurity.{sweep}"],
+                impact=text, managed_by=os.environ.get("SKAGENT") or "lumina", created_by=AGENT,
+                tags=["sksecurity", f"sweep:{sweep}", f"host:{host}", "backlog"])
+            out["filed"].append(inc.id)
+        else:
+            mgr.update_incident(inc.id, AGENT, note="re-baselined: " + text)
+            out["updated"] = [inc.id]
+    except Exception as exc:
+        logger.warning("could not file backlog incident: %s", exc)
+        out["error"] = "backlog-filing-failed"
+    return out
 
 
 def _now() -> str:
@@ -140,9 +260,19 @@ def report(findings: List[Finding], sweep: str, dry_run: bool = True) -> Dict[st
     """
     out = _summary(findings, sweep, dry_run)
     host = socket.gethostname()
+    base = load_baseline(sweep)
+    all_findings = findings
+    # Baselined (accepted) findings are not filed again; only new fingerprints are.
+    findings = [f for f in all_findings if f.fingerprint not in base]
+    out["new"] = len(findings)
+    out["baselined"] = len(all_findings) - len(findings)
     urgent = sorted((f for f in findings if f.severity in _SEV_TO_ITIL), key=_sort_key)
     minor = sorted((f for f in findings if f.severity not in _SEV_TO_ITIL), key=_sort_key)
     out["plan"] = {"urgent": len(urgent), "rollup": len(minor), "over_cap": 0}
+    partial = any(f.klass == _META_TRUNCATED for f in all_findings)
+    gone = [] if partial else sorted(fp for fp in base
+                                     if fp not in {f.fingerprint for f in all_findings})
+    out["plan"]["baseline_fixed"] = len(gone)
 
     if dry_run:
         return out
@@ -160,6 +290,8 @@ def report(findings: List[Finding], sweep: str, dry_run: bool = True) -> Dict[st
         if "sksecurity" not in tags or f"sweep:{sweep}" not in tags:
             continue
         if f"host:{host}" not in tags:
+            continue
+        if "backlog" in tags:
             continue
         if "rollup" in tags:
             rollup = rollup or inc
@@ -230,8 +362,7 @@ def report(findings: List[Finding], sweep: str, dry_run: bool = True) -> Dict[st
 
     # Open finding incidents no longer seen: event only, never auto-close.
     # A partial run (time budget) cannot say "gone".
-    seen = {f.fingerprint for f in findings}
-    partial = any(f.klass == _META_TRUNCATED for f in findings)
+    seen = {f.fingerprint for f in all_findings}
     not_seen: List[str] = []
     if not partial:
         for fp, inc in by_fp.items():
@@ -246,15 +377,36 @@ def report(findings: List[Finding], sweep: str, dry_run: bool = True) -> Dict[st
             except Exception as exc:
                 logger.warning("could not annotate %s: %s", inc.id, exc)
 
+    # Accepted findings that disappeared: one appended event on the backlog
+    # incident (never an auto-close), then drop them from the baseline so a
+    # recurrence is reported as new.
+    if gone:
+        remaining = {fp: v for fp, v in base.items() if fp not in set(gone)}
+        try:
+            backlog = _backlog_incident(open_incs, sweep, host)
+            if backlog is not None:
+                fixed = [base[fp] for fp in gone]
+                lines = [f"{len(gone)} accepted finding(s) no longer seen (fixed) at {_now()}; "
+                         f"{len(remaining)} of {len(base)} remain accepted."]
+                lines += ["fixed " + ln for ln in _counts_text(fixed)]
+                lines += ["remaining " + ln for ln in _counts_text(list(remaining.values()))
+                          ] if remaining else []
+                mgr.update_incident(backlog.id, AGENT, note="\n".join(lines))
+                updated.append(backlog.id)
+            _write_baseline(sweep, remaining, host)
+        except Exception as exc:
+            logger.warning("could not update backlog incident: %s", exc)
+
     out.update(filed=filed, updated=updated, not_seen=not_seen)
 
-    if findings:
+    if findings or gone:
         try:
             from . import integration
-            worst = min((f.severity for f in findings), key=lambda s: _SEV_RANK.get(s, 9))
+            worst = min((f.severity for f in findings), key=lambda s: _SEV_RANK.get(s, 9),
+                        default="low")
             integration.alert(
                 "sweep_summary",
-                {"sweep": sweep, "host": host, "total": len(findings),
+                {"sweep": sweep, "host": host, "total": len(all_findings), "new": len(findings),
                  "by_severity": out["by_severity"], "new_incidents": len(filed),
                  "not_seen": len(not_seen)},
                 level=integration.level_for_severity(worst))

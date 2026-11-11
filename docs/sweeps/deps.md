@@ -19,15 +19,18 @@ vulnerabilities. It is report-only: it never installs, upgrades or modifies anyt
 
 ## Findings
 
-One finding per (environment, package, vulnerability id).
+One finding per (environment, package). All of the package's vulnerability ids
+are listed in the summary and kept per-vuln (id, aliases, fix versions, CVSS,
+severity) in `details.vulns`; the worst severity wins. This keeps ITIL to one
+incident per package instead of one per CVE.
 
 | Field | Value |
 | --- | --- |
 | klass | `dep.vuln` |
 | location | `<env>: <pkg>==<version>` |
-| summary | vulnerability id plus aliases (CVE, GHSA) |
+| summary | package, count, and every vulnerability id with its aliases (CVE, GHSA) |
 | remediation | `upgrade to <fix versions>` or `no fix released` |
-| fingerprint | environment + package + vulnerability id (not the version) |
+| fingerprint | environment + package (not the version, not the vulnerability set) |
 
 Severity: `high` when a fix version exists, `medium` when none. `critical` when OSV
 (`https://api.osv.dev/v1/vulns/<id>`) reports a CVSS base score of 9.0 or more. OSV answers are
