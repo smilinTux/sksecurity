@@ -220,6 +220,29 @@ def screen(ctx, content, file, sender, subject, output_format):
     sys.exit(0 if result.is_safe else 1)
 
 
+@cli.command(name="screen-file")
+@click.argument('paths', nargs=-1, required=True, type=click.Path())
+@click.option('--format', 'output_format', default='text', type=click.Choice(['text', 'json']))
+def screen_file_cmd(paths, output_format):
+    """Screen files (attachments) for malware, macros and disguised types.
+
+    Report-only: files are never modified, moved or deleted. Exit 1 if any
+    file is malicious.
+
+    Example: sksecurity screen-file invoice.pdf --format json
+    """
+    from .filescreen import screen_files
+    results = screen_files(paths)
+    if output_format == 'json':
+        click.echo(json.dumps({"files": [r.to_dict() for r in results]}, indent=2))
+    else:
+        for r in results:
+            click.echo(f"{r.verdict.value.upper():10s} {r.path} (av: {r.av})")
+            for f in r.findings:
+                click.echo(f"  [{f.severity}] {f.description}")
+    sys.exit(1 if any(r.is_malicious for r in results) else 0)
+
+
 @cli.group()
 def guard():
     """Secret leak prevention - detect and block credential leaks.
