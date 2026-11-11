@@ -1,14 +1,12 @@
-"""sksecurity ⇄ skcapstone — optional integration adapter.
+"""sksecurity <-> skcapstone - optional integration adapter.
 
-sksecurity is a self-contained security scanner.  When ``skcapstone`` is
-installed (and ``SK_STANDALONE`` is unset) this adapter shares threat
-detections on the mesh-wide **sk-alert** bus — realising the long-standing
-"agent-to-agent threat sharing" goal — and registers a daily threat-intel
-refresh with the fleet **skscheduler**.  When skcapstone is absent everything
-degrades to sksecurity's native behaviour (the local dashboard "Recent Alerts"
-feed + the in-process ``SecurityMonitor`` daemon).
+When ``skcapstone`` is installed (and ``SK_STANDALONE`` is unset) this adapter
+publishes detections on the mesh-wide **sk-alert** bus.  When skcapstone is
+absent, or ``SK_STANDALONE`` is set, it only writes to the local logger.  It
+never registers itself, never writes a scheduler job and never touches the
+skcapstone registry.
 
-Default-on by presence, native fallback — see
+Default-on by presence, native fallback - see
 ``skcapstone/docs/ADR-optional-integration-backbone.md``.  ``skcapstone`` is a
 soft dependency in the optional ``[skcapstone]`` extra; never imported hard.
 
@@ -16,9 +14,6 @@ Public API:
     is_present()                       -> bool
     level_for_severity(severity)       -> str  (sksecurity → sk-alert level)
     alert(event, payload, level)       -> bool
-    ensure_schedule(interval_hours)    -> bool
-    unregister_schedule()              -> bool
-    register_self(pid_file)            -> bool
 
 Topic convention: ``sksecurity.<severity>`` (severity ∈ info|warn|error|
 critical); the detection's event name/type travels in the payload.
@@ -28,17 +23,14 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("sksecurity.integration")
 
-#: Service name — alert topic prefix and discovery registry key.
+#: Service name - alert topic prefix and discovery registry key.
 SERVICE = "sksecurity"
 
-#: Fleet-scheduler job name for the threat-intel refresh.
-INTEL_JOB = "sksecurity_intel_refresh"
-
-# Optional import — never a hard dependency.
+# Optional import - never a hard dependency.
 try:
     from skcapstone import sdk as _sdk
 except Exception:
@@ -109,57 +101,3 @@ def alert(event: str, payload: dict[str, Any], level: str = "info") -> bool:
     method = getattr(logger, _LOG_METHOD.get(level, "info"))
     method("[%s.%s] %s", SERVICE, level, body)
     return False
-
-
-def ensure_schedule(interval_hours: float = 24.0) -> bool:
-    """Register a daily threat-intel refresh with the fleet scheduler.
-
-    Writes a ``jobs.d/sksecurity_intel_refresh.yaml`` drop-in running
-    ``sksecurity update`` (pull threat intelligence from configured sources).
-    Idempotent. ``True`` if registered with skscheduler, ``False`` when
-    skcapstone is absent (the native ``SecurityMonitor`` daemon remains the
-    realtime mechanism either way).
-    """
-    if not is_present():
-        return False
-    try:
-        _sdk.register_job(
-            {
-                "name": INTEL_JOB,
-                "type": "shell",
-                "command": "sksecurity update --sources all",
-                "every": f"{int(interval_hours * 3600)}s",
-                "timeout": 600,
-                "notify": "on_failure",
-                "notify_level": "warn",
-            }
-        )
-        logger.info("Registered '%s' with skcapstone scheduler (every %.1fh).",
-                    INTEL_JOB, interval_hours)
-        return True
-    except Exception as exc:
-        logger.warning("ensure_schedule failed (using native): %s", exc)
-        return False
-
-
-def unregister_schedule() -> bool:
-    """Remove the threat-intel refresh drop-in from the fleet scheduler."""
-    if _sdk is None:
-        return False
-    try:
-        return bool(_sdk.unregister_job(INTEL_JOB))
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug("unregister_schedule failed: %s", exc)
-        return False
-
-
-def register_self(pid_file: Optional[str] = None) -> bool:
-    """Advertise sksecurity to skcapstone's discovery registry, if present."""
-    if not is_present():
-        return False
-    try:
-        _sdk.register_service(SERVICE, pid_file=pid_file)
-        return True
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug("register_self failed: %s", exc)
-        return False

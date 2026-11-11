@@ -1,131 +1,36 @@
 """
-SKSecurity Enterprise - AI Agent Security Platform
-The only security solution AI agents need.
+SKSecurity: secret guard, honest-claims gate, input screening and
+post-quantum posture reports for the SK agent estate.
+
+Modules:
+    secret_guard    credential leak detection (``sksecurity guard``)
+    honest_claims   forbidden-overclaim gate (``sksecurity claims``)
+    email_screener  text heuristics for phishing / injection (``sksecurity screen``)
+    pqc_report, pqc_posture, pqc_stacks   PQC self-report (``sksecurity pqc-*``)
+    kms             HKDF + AES-GCM key-wrapping KMS (used by skcapstone)
+    integration     optional sk-alert publishing when skcapstone is present
 """
 
 from ._ver import detect_version
 
 __version__ = detect_version()
-__author__ = "smilinTux Team + Queen Ara + Neuresthetics"
+__author__ = "smilinTux Team"
 __license__ = "GPL-3.0-or-later"
-__description__ = "Enterprise-grade security for AI agent ecosystems"
+__description__ = "Secret guard, honest-claims gate, input screening and PQC posture for AI agent estates"
 
-from .scanner import SecurityScanner, ScanResult
-from .intelligence import ThreatIntelligence, ThreatSource
-from .dashboard import DashboardServer, SecurityDashboard
-from .database import SecurityDatabase, SecurityEvent
-from .config import SecurityConfig, SecurityPolicy
-from .monitor import SecurityMonitor, RuntimeMonitor
-from .quarantine import QuarantineManager, QuarantineRecord
 from .email_screener import EmailScreener, ScreeningResult, Verdict, ThreatCategory
 from .secret_guard import SecretGuard, GuardResult, SecretFinding
-from .truth_engine import TruthEngine, TruthVerdict
 
-# Main API exports
 __all__ = [
-    # Core scanning
-    'SecurityScanner',
-    'ScanResult',
-
-    # Email & input screening
-    'EmailScreener',
-    'ScreeningResult',
-    'Verdict',
-    'ThreatCategory',
-
-    # Secret leak prevention
-    'SecretGuard',
-    'GuardResult',
-    'SecretFinding',
-
-    # Threat intelligence
-    'ThreatIntelligence',
-    'ThreatSource',
-
-    # Dashboard and monitoring
-    'DashboardServer',
-    'SecurityDashboard',
-    'SecurityMonitor',
-    'RuntimeMonitor',
-
-    # Database and events
-    'SecurityDatabase',
-    'SecurityEvent',
-
-    # Configuration
-    'SecurityConfig',
-    'SecurityPolicy',
-
-    # Quarantine system
-    'QuarantineManager',
-    'QuarantineRecord',
-
-    # Truth engine (Neuresthetics seed integration)
-    'TruthEngine',
-    'TruthVerdict',
-
-    # Version info
-    '__version__',
-    '__author__',
-    '__license__',
-    '__description__',
+    "EmailScreener",
+    "ScreeningResult",
+    "Verdict",
+    "ThreatCategory",
+    "SecretGuard",
+    "GuardResult",
+    "SecretFinding",
+    "__version__",
+    "__author__",
+    "__license__",
+    "__description__",
 ]
-
-# Default security configuration
-DEFAULT_CONFIG = {
-    'security': {
-        'enabled': True,
-        'auto_quarantine': False,
-        'risk_threshold': 80,
-        'dashboard_port': 8888,
-    },
-    'threat_sources': [
-        {
-            'name': 'Community AI Safety',
-            # moltbook.com was a placeholder domain. Using bundled community patterns.
-            'url': 'https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/ai-safety.json',
-            'enabled': True,
-            'priority': 1
-        },
-        {
-            'name': 'Community Traditional',
-            'url': 'https://raw.githubusercontent.com/smilinTux/SKSecurity/main/community-threats/patterns/traditional.json',
-            'enabled': True,
-            'priority': 2
-        }
-    ],
-    'monitoring': {
-        'runtime_monitoring': True,
-        'file_system_monitoring': True,
-        'network_monitoring': False,
-    }
-}
-
-def get_version():
-    """Get SKSecurity version string."""
-    return __version__
-
-def get_default_config():
-    """Get default security configuration."""
-    return DEFAULT_CONFIG.copy()
-
-def create_scanner(**kwargs):
-    """Create a SecurityScanner with default configuration."""
-    return SecurityScanner(**kwargs)
-
-def create_dashboard(**kwargs):
-    """Create a SecurityDashboard with default configuration.""" 
-    return SecurityDashboard(**kwargs)
-
-def quick_scan(path, **kwargs):
-    """Quick security scan of a path."""
-    scanner = SecurityScanner(**kwargs)
-    return scanner.scan(path)
-
-# Banner for CLI
-BANNER = """
-🛡️  SKSecurity Enterprise
-==========================
-Enterprise-grade AI agent security
-Version: {version}
-""".format(version=__version__)

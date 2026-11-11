@@ -25,7 +25,20 @@ REAL_HOME = Path(os.environ.get("HOME", "~")).expanduser()
 REAL_REGISTRY = REAL_HOME / ".skcapstone" / "registry" / "sksecurity.json"
 REAL_REGISTRY_MTIME = REAL_REGISTRY.stat().st_mtime_ns if REAL_REGISTRY.exists() else None
 
+def _link_liboqs(home: Path) -> None:
+    """`import oqs` tries to git clone and build liboqs under HOME when it is
+    missing, which hangs a test run for minutes. If the real HOME has a liboqs
+    install, expose it read-only in the fake HOME."""
+    src = REAL_HOME / "_oqs"
+    if src.is_dir() and not (home / "_oqs").exists():
+        try:
+            (home / "_oqs").symlink_to(src)
+        except OSError:
+            pass
+
+
 _SESSION_HOME = tempfile.mkdtemp(prefix="sksecurity-test-home-")
+_link_liboqs(Path(_SESSION_HOME))
 os.environ["HOME"] = _SESSION_HOME
 os.environ["SKCAPSTONE_HOME"] = str(Path(_SESSION_HOME) / ".skcapstone")
 os.environ["SK_STANDALONE"] = "1"
@@ -35,6 +48,7 @@ os.environ["SK_STANDALONE"] = "1"
 def _isolated_home(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
+    _link_liboqs(home)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("SKCAPSTONE_HOME", str(home / ".skcapstone"))
     monkeypatch.setenv("SK_STANDALONE", "1")
