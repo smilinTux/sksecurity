@@ -67,6 +67,17 @@ DEFAULT_EXCLUDE = [
     "*/.config/microsoft-edge", "*/.config/microsoft-edge/*",
     "*/.mozilla", "*/.mozilla/*",
     "*/.hermes/cache", "*/.hermes/cache/*",
+    "*/.config/vivaldi*", "*/.config/opera*",
+    # Electron / Chromium app stores (VS Code, VSCodium, Docker Desktop, T3, ...):
+    # HTTP caches and profile databases hold cached web responses and the app's
+    # own session tokens, not leaked secrets. Found on .41 on 2026-11-11, where
+    # they were most of ~2700 gitleaks hits.
+    "*/Cache/Cache_Data/*", "*/Code Cache/*", "*/GPUCache/*", "*/CachedData/*",
+    "*/Service Worker/CacheStorage/*", "*/Service Worker/ScriptCache/*",
+    "*/shared_proto_db/*", "*/IndexedDB/*", "*/Local Storage/leveldb/*",
+    "*/Session Storage/*",
+    # The scanner's own fixtures are fake secrets by design.
+    "*/sksecurity/tests/*",
 ]
 
 SYSTEMD_DIRS = ["~/.config/systemd/user", "/etc/systemd/system"]

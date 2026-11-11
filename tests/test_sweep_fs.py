@@ -334,3 +334,16 @@ def test_secrets_dir_files_inside_a_repo_are_not_perm_findings(tmp_path):
     g.chmod(0o644)
     got = [f.location for f in fs.run(root=str(tmp_path / "r")) if f.klass == "perm.secret-file"]
     assert got == [str(loose)]
+
+
+def test_app_caches_and_own_fixtures_excluded():
+    from sksecurity.sweeps.fs import DEFAULT_EXCLUDE, _excluded
+    for p in ["/home/u/.config/Code/Cache/Cache_Data/04d3_0",
+              "/home/u/.config/Docker Desktop/Cache/Cache_Data/1f2_0",
+              "/home/u/.config/t3code-service-app/x/Default/shared_proto_db/000003.log",
+              "/home/u/.config/vivaldi/Default/Preferences",
+              "/home/u/clawd/skcapstone-repos/sksecurity/tests/test_secret_guard.py"]:
+        assert _excluded(p, DEFAULT_EXCLUDE), p
+    for p in ["/home/u/.config/systemd/user/x.service", "/home/u/clawd/repo/app.env",
+              "/home/u/.skcapstone/agents/opus/config/cursor-mcp.json"]:
+        assert not _excluded(p, DEFAULT_EXCLUDE), p
