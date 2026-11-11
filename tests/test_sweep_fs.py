@@ -342,6 +342,8 @@ def test_app_caches_and_own_fixtures_excluded():
               "/home/u/.config/Docker Desktop/Cache/Cache_Data/1f2_0",
               "/home/u/.config/t3code-service-app/x/Default/shared_proto_db/000003.log",
               "/home/u/.config/vivaldi/Default/Preferences",
+              "/home/u/.config/talk-nam/chromium/Default/Shared Dictionary/cache/815d_0",
+              "/home/u/.config/Code/WebStorage/13/CacheStorage/fcd8/2b07_0",
               "/home/u/clawd/skcapstone-repos/sksecurity/tests/test_secret_guard.py"]:
         assert _excluded(p, DEFAULT_EXCLUDE), p
     for p in ["/home/u/.config/systemd/user/x.service", "/home/u/clawd/repo/app.env",
