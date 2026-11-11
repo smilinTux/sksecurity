@@ -75,7 +75,8 @@ DEFAULT_EXCLUDE = [
     "*/Cache/Cache_Data/*", "*/Code Cache/*", "*/GPUCache/*", "*/CachedData/*",
     "*/Service Worker/CacheStorage/*", "*/Service Worker/ScriptCache/*",
     "*/shared_proto_db/*", "*/IndexedDB/*", "*/Local Storage/leveldb/*",
-    "*/Session Storage/*",
+    "*/Session Storage/*", "*/CacheStorage/*", "*/Shared Dictionary/*",
+    "*/chromium/Default/*", "*/chromium/Profile */*",
     # The scanner's own fixtures are fake secrets by design.
     "*/sksecurity/tests/*",
 ]
