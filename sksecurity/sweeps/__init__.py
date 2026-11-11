@@ -15,7 +15,9 @@ from typing import Callable, Dict, List
 from ..findings import Finding
 
 #: sweep name -> module path. Add one line per sweep.
-SWEEPS: Dict[str, str] = {}
+SWEEPS: Dict[str, str] = {
+    "fs": "sksecurity.sweeps.fs",
+}
 
 
 def get(name: str) -> Callable[..., List[Finding]]:
