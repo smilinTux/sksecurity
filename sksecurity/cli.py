@@ -439,6 +439,10 @@ def sweep_cmd(name, output_format, do_report, do_baseline, opts):
         for f in findings:
             click.echo(f"[{f.severity}] {f.klass} {f.location}: {f.summary}")
         click.echo(json.dumps(summary))
+    if do_report:
+        # Scheduled mode: findings went to ITIL, so they are not a job failure.
+        # Only a reporting failure is (exit 3), so sk-cron-run alerts on that.
+        sys.exit(3 if summary.get("error") else 0)
     accepted = set() if do_baseline else load_baseline(name)
     sys.exit(0 if do_baseline else 1 if any(
         f.severity in ("critical", "high") and f.fingerprint not in accepted
