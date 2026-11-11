@@ -14,6 +14,30 @@ from typing import Dict, List, Optional, Any
 from urllib.parse import urlparse
 
 
+URL_SHORTENERS = frozenset({
+    "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "buff.ly",
+    "rebrand.ly", "cutt.ly", "tiny.cc", "shorturl.at", "rb.gy", "t.ly",
+    "bl.ink", "lnkd.in", "s.id", "v.gd", "shorte.st", "adf.ly", "bitly.com",
+})
+
+#: brand keyword -> registrable domains that legitimately carry it.
+BRAND_DOMAINS = {
+    "paypal": ("paypal.com", "paypal.me"),
+    "google": ("google.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "goo.gl"),
+    "microsoft": ("microsoft.com", "microsoftonline.com"),
+    "apple": ("apple.com", "icloud.com"),
+    "amazon": ("amazon.com", "amazonaws.com", "amazon.co.uk", "amazon.ca", "amazon.de"),
+    "gmail": ("gmail.com",),
+    "usaa": ("usaa.com",),
+    "chase": ("chase.com",),
+    "wellsfargo": ("wellsfargo.com",),
+}
+
+
+def _host_matches(hostname: str, domain: str) -> bool:
+    return hostname == domain or hostname.endswith("." + domain)
+
+
 class Verdict(str, Enum):
     """Screening verdict for a piece of content."""
     SAFE = "safe"
@@ -404,6 +428,25 @@ class EmailScreener:
                 continue
 
             risk_signals: List[str] = []
+            hostname = hostname.lower()
+            strong = False
+
+            if any(_host_matches(hostname, d) for d in URL_SHORTENERS):
+                risk_signals.append("URL shortener hides the destination")
+                shortener_only = True
+            else:
+                shortener_only = False
+
+            if any(lbl.startswith("xn--") for lbl in hostname.split(".")):
+                risk_signals.append("punycode/IDN hostname (xn--)")
+                shortener_only = False
+
+            for brand, legit in BRAND_DOMAINS.items():
+                if brand in hostname and not any(_host_matches(hostname, d) for d in legit):
+                    risk_signals.append(f"lookalike brand domain ({brand})")
+                    strong = True
+                    shortener_only = False
+                    break
 
             for tld in suspicious_tlds:
                 if hostname.endswith(tld):
@@ -425,14 +468,21 @@ class EmailScreener:
             if "@" in url:
                 risk_signals.append("URL contains @ (credential-stuffing pattern)")
 
+            if len(risk_signals) > 1:
+                shortener_only = False
+
             if risk_signals:
                 line_num = content[: match.start()].count("\n") + 1
-                severity = "HIGH" if len(risk_signals) >= 2 else "MEDIUM"
+                severity = "HIGH" if (len(risk_signals) >= 2 or strong) else "MEDIUM"
+                if shortener_only:
+                    # A bare shortener is common in newsletters: a weak signal.
+                    severity = "LOW"
                 findings.append(
                     ScreeningFinding(
                         category=ThreatCategory.MALICIOUS_LINK,
                         severity=severity,
-                        confidence=min(0.5 + 0.15 * len(risk_signals), 0.95),
+                        confidence=min(0.5 + 0.15 * len(risk_signals), 0.95)
+                        if not shortener_only else 0.4,
                         description=f"Suspicious URL: {', '.join(risk_signals)}",
                         matched_text=url[:120],
                         line_number=line_num,
@@ -456,7 +506,7 @@ class EmailScreener:
                 "Artificial urgency language",
             ),
             (
-                r"(?:click\s+(?:here|the\s+link|below)\s+to\s+(?:verify|confirm|update|secure))",
+                r"(?:click\s+(?:here|the\s+link|below|\S{1,200}?)\s+to\s+(?:verify|confirm|update|secure))",
                 "Action-required phishing pattern",
             ),
             (
@@ -479,6 +529,19 @@ class EmailScreener:
                         remediation="Verify this message through an independent channel before acting.",
                     )
                 )
+            if subject:
+                m = re.search(pattern, subject, re.IGNORECASE)
+                if m:
+                    findings.append(
+                        ScreeningFinding(
+                            category=ThreatCategory.PHISHING,
+                            severity="MEDIUM",
+                            confidence=0.70,
+                            description=f"{description} (in subject)",
+                            matched_text=m.group(),
+                            remediation="Verify this message through an independent channel before acting.",
+                        )
+                    )
 
         if sender and subject:
             # Reason: mismatch between display name domain and sender domain is a classic spoof
