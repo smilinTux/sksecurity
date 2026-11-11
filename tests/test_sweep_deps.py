@@ -62,6 +62,7 @@ def test_findings_osv_down_falls_back(env, monkeypatch):
     assert a.klass == "dep.vuln"
     assert "PYSEC-1" in a.summary and "CVE-2026-1" in a.summary and "GHSA-aaaa" in a.summary
     assert a.remediation == "upgrade to 3.14.1, 3.15.0"
+    assert a.details["vuln_count"] == 1 and a.details["vulns"][0]["vuln_id"] == "PYSEC-1"
     assert next(f for f in fs if "oldlib" in f.location).remediation == "no fix released"
     assert not any("capauth" in f.location for f in fs)  # editable skipped cleanly
     assert deps.LAST_STATS["packages_checked"] == 3 and deps.LAST_STATS["packages_skipped"] == 1
@@ -169,3 +170,23 @@ def test_requirements_uses_no_deps(tmp_path, monkeypatch):
 def test_cvss3_score():
     assert deps._cvss3_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H") == 9.8
     assert deps._cvss3_score("garbage") is None
+
+
+def test_one_finding_per_package_worst_severity_wins(env, monkeypatch):
+    many = {"dependencies": [{"name": "Multi", "version": "1.0", "vulns": [
+        {"id": "V-1", "fix_versions": ["1.1"], "aliases": ["CVE-1"]},
+        {"id": "V-2", "fix_versions": [], "aliases": []},
+        {"id": "V-3", "fix_versions": ["1.2"], "aliases": []}]}]}
+    monkeypatch.setattr(deps, "_osv_fetch", lambda i: 9.9 if i == "V-3" else None)
+    _patch_run(monkeypatch, lambda cmd, **kw: Proc(json.dumps(many)))
+    fs = deps.run(venv=str(env))
+    assert len(fs) == 1
+    f = fs[0]
+    assert f.severity == "critical" and f.details["vuln_count"] == 3
+    assert [v["vuln_id"] for v in f.details["vulns"]] == ["V-1", "V-2", "V-3"]
+    assert "V-1" in f.summary and "V-3" in f.summary and "no fix released for V-2" in f.remediation
+    # fingerprint is independent of the vuln set: a new CVE updates, not reopens
+    more = json.loads(json.dumps(many))
+    more["dependencies"][0]["vulns"].append({"id": "V-4", "fix_versions": [], "aliases": []})
+    _patch_run(monkeypatch, lambda cmd, **kw: Proc(json.dumps(more)))
+    assert deps.run(venv=str(env))[0].fingerprint == f.fingerprint

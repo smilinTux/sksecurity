@@ -35,6 +35,7 @@ EXCLUDE_NAMES = {"pip-audit"}
 
 #: coverage of the last run() (targets audited, packages checked/skipped), for callers and tests.
 LAST_STATS: Dict[str, Any] = {}
+_SEV_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 def _finding(klass, severity, location, summary, *parts, **kw) -> Finding:
@@ -224,20 +225,36 @@ def _findings_for(label: str, data: Dict[str, Any], osv: OsvScores) -> Tuple[Lis
             continue
         checked += 1
         pkg, ver = dep["name"], dep["version"]
+        vulns: List[Dict[str, Any]] = []
+        fixes_all: List[str] = []
         for v in dep.get("vulns", []):
             vid = v["id"]
             aliases = list(v.get("aliases") or [])
             fixes = list(v.get("fix_versions") or [])
             cvss = osv.score([vid, *aliases])
             sev = "critical" if cvss is not None and cvss >= 9 else ("high" if fixes else "medium")
-            ids = ", ".join([vid, *aliases])
-            out.append(_finding(
-                "dep.vuln", sev, f"{label}: {pkg}=={ver}",
-                f"{pkg} {ver} has known vulnerability {ids}",
-                label, pkg.lower(), vid,
-                remediation=f"upgrade to {', '.join(fixes)}" if fixes else "no fix released",
-                details={"environment": label, "package": pkg, "version": ver, "vuln_id": vid,
-                         "aliases": aliases, "fix_versions": fixes, "cvss": cvss}))
+            vulns.append({"vuln_id": vid, "aliases": aliases, "fix_versions": fixes,
+                          "cvss": cvss, "severity": sev})
+            fixes_all.extend(fixes)
+        if not vulns:
+            continue
+        worst = min((v["severity"] for v in vulns), key=_SEV_RANK.__getitem__)
+        ids = "; ".join(", ".join([v["vuln_id"], *v["aliases"]]) for v in vulns)
+        unfixed = [v["vuln_id"] for v in vulns if not v["fix_versions"]]
+        if fixes_all:
+            rem = f"upgrade to {', '.join(sorted(set(fixes_all)))}"
+            if unfixed:
+                rem += f"; no fix released for {', '.join(unfixed)}"
+        else:
+            rem = "no fix released"
+        n = len(vulns)
+        # One finding per (environment, package): fingerprint excludes version and vuln ids.
+        out.append(_finding(
+            "dep.vuln", worst, f"{label}: {pkg}=={ver}",
+            f"{pkg} {ver} has {n} known vulnerabilit{'y' if n == 1 else 'ies'}: {ids}",
+            label, pkg.lower(), remediation=rem,
+            details={"environment": label, "package": pkg, "version": ver,
+                     "vuln_count": n, "vulns": vulns}))
     return out, checked, skipped
 
 
