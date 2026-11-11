@@ -242,7 +242,7 @@ def test_live_report_all_hybrid_groups_report_hybrid(monkeypatch):
 # ---------------------------------------------------------------------------
 
 from sksecurity.pqc_report import (  # noqa: E402
-    build_project_report, known_projects, PROJECT_SURFACES,
+    build_project_report, known_projects,
 )
 
 
@@ -319,8 +319,7 @@ def test_unknown_project_raises():
 
 import json as _json  # noqa: E402
 from sksecurity.pqc_report import (  # noqa: E402
-    append_snapshot, load_ledger, seed_ledger, _snapshot_from_report,
-    build_live_report,
+    _snapshot_from_report,
 )
 
 

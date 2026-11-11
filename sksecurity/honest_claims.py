@@ -1,10 +1,10 @@
 """
-SKSecurity Enterprise — Honest Claims Scanner (the no-overclaim gate).
+SKSecurity - Honest Claims Scanner (the no-overclaim gate).
 
 Security marketing rots into lies the moment it promises more than the math
 delivers. This module scans docs, code, and comments for forbidden security
-overclaims — "quantum-proof", "quantum-safe", "unbreakable", "uncrackable",
-"100% secure", and "military-grade" used as a security claim — and exits
+overclaims - "quantum-proof", "quantum-safe", "unbreakable", "uncrackable",
+"100% secure", and "military-grade" used as a security claim - and exits
 non-zero when a *real* claim is found.
 
 It is deliberately tolerant of honest discipline. The whole point of this
@@ -21,7 +21,7 @@ Honesty discipline this gate encodes (sk-standards CRYPTOGRAPHY_STANDARD):
   * Cite the standard, not the adjective: FIPS 203 (ML-KEM), FIPS 204
     (ML-DSA), FIPS 205 (SLH-DSA).
 
-Pure-Python, zero hard dependencies, regex-driven — same shape as
+Pure-Python, zero hard dependencies, regex-driven - same shape as
 `secret_guard.py` so it slots straight into the CLI and CI.
 """
 
@@ -123,7 +123,7 @@ class ClaimScanResult:
                 "phrase it as a negation, or add the file to .honestclaims-allow."
             )
 
-        lines.append("🛡️ Powered by SKSecurity Enterprise")
+        lines.append("🛡️ Powered by SKSecurity")
         return "\n".join(lines)
 
 
@@ -133,7 +133,7 @@ class ClaimScanResult:
 # Each entry: (compiled_regex, label, severity, requires_security_context,
 #              rationale, suggestion)
 # `requires_security_context=True` means the phrase only counts as a
-# violation when the surrounding line also mentions security/crypto — so
+# violation when the surrounding line also mentions security/crypto - so
 # "military-grade titanium" is fine but "military-grade encryption" is not.
 
 ClaimPattern = Tuple[re.Pattern, str, str, bool, str, str]
@@ -187,7 +187,7 @@ FORBIDDEN_CLAIMS: List[ClaimPattern] = [
         "military-grade",
         "HIGH",
         True,  # only a violation as a *security* claim
-        "\"Military-grade\" is marketing, not a spec — it asserts a pedigree "
+        "\"Military-grade\" is marketing, not a spec - it asserts a pedigree "
         "the math does not.",
         'Name the primitive and parameters (e.g. "AES-256-GCM", "X25519").',
     ),
@@ -221,7 +221,7 @@ _NEGATION_MARKERS: Tuple[str, ...] = (
     "❌", "🚫", "no such thing", "not truly", "n't",
 )
 # "Open Quantum Safe" / "open-quantum-safe" is the name of the OQS project
-# (and the liboqs library/URL) — a proper noun PQC repos cite constantly, NOT
+# (and the liboqs library/URL) - a proper noun PQC repos cite constantly, NOT
 # a "quantum-safe" security claim. A `quantum-safe` hit immediately preceded by
 # "open" + a separator is the tail of that proper noun and is not a claim.
 _OQS_PROPER_NOUN = re.compile(r"open[\s\-_]$", re.IGNORECASE)
@@ -360,7 +360,7 @@ class HonestClaimsScanner:
         """True if the forbidden phrase is a negation / meta reference.
 
         Strategy: scope to the enclosing sentence (bounded by . ! ? or a blank
-        line), then look for negation words anywhere in that sentence — before
+        line), then look for negation words anywhere in that sentence - before
         OR after the phrase (handles "Avoid X; never imply that."). Also treat
         a phrase immediately wrapped in quotes as a meta reference.
         """

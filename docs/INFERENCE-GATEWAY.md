@@ -173,7 +173,7 @@ Every request/response is logged as structured JSON, optionally PGP-signed for t
     "completion_tokens": 340,
     "tool_calls": [
       {"name": "read", "args": {"path": "/home/cbrd21/clawd/security/config/whitelist.json"}},
-      {"name": "exec", "args": {"command": "sksecurity scan ."}}
+      {"name": "exec", "args": {"command": "sksecurity guard scan ."}}
     ],
     "latency_ms": 2340,
     "contains_pii": false

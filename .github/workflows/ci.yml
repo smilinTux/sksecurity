@@ -3,20 +3,9 @@ name: CI
 # Pytest CI for the sksecurity Python package.
 # Runs on GitHub-hosted runners (NOT a sovereign host).
 #
-# Honest exclusions (this repo defines NO pytest markers, so exclusion is by
-# explicit node id / file, documented here rather than hidden behind a fake skip):
-#
-#   * tests/test_truth_engine.py used to be IGNORED for importing a private
-#     symbol (`_check_skmemory`) that no longer existed. The stale import was
-#     removed on 2026-08-14, so the file now collects and runs like any other.
-#
-#   * The four "integrated-mode" tests in tests/test_integration_adapter.py
-#     (test_alert_publishes_severity_topic, test_ensure_schedule_registers_intel_refresh,
-#     test_register_self_writes_registry, test_monitor_event_shares_threat) are
-#     DESELECTED — they hard-`import skcapstone`, a sovereign sibling package that
-#     is NOT published to PyPI, so it cannot be installed on a public runner. The
-#     standalone/absent-mode integration tests in the same file (which prove the
-#     native-fallback contract WITHOUT skcapstone) still run.
+# No exclusions: every test in tests/ runs on the public runner. Tests set
+# SK_STANDALONE=1 and point HOME/SKCAPSTONE_HOME at tmp dirs (tests/conftest.py),
+# so the optional skcapstone package is never needed or touched.
 
 on:
   push:
@@ -47,13 +36,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      # web  = Flask, required by tests/test_dashboard_api.py
-      # pdf  = reportlab, required by the PDF branch of tests/test_cli.py
-      # Without these the suite errors at setup instead of testing anything.
       - name: Install package + dev deps
         run: |
           python -m pip install --upgrade pip
-          pip install ".[dev,web,pdf]"
+          pip install ".[dev]"
 
       # Flat layout: the package lives at sksecurity/, NOT src/. Lint that path.
       # No `pip install ruff` here: it pulled the LATEST ruff on every run,
@@ -64,9 +50,4 @@ jobs:
         run: ruff check sksecurity/
 
       - name: Run pytest
-        run: |
-          python -m pytest tests/ -v --tb=short \
-            --deselect "tests/test_integration_adapter.py::test_alert_publishes_severity_topic" \
-            --deselect "tests/test_integration_adapter.py::test_ensure_schedule_registers_intel_refresh" \
-            --deselect "tests/test_integration_adapter.py::test_register_self_writes_registry" \
-            --deselect "tests/test_integration_adapter.py::test_monitor_event_shares_threat"
+        run: python -m pytest tests/ -v --tb=short

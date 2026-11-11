@@ -18,7 +18,7 @@ produced — two deliverables:
 1. **Static crypto inventory** (Phase 0): grep every repo (skcomms, skchat, capauth,
    sksecurity, skmemory) for `X25519|Ed25519|RSA|AES|Curve25519|PGP`; record
    surface → primitive. This is the map of what must migrate.
-2. **Runtime self-report** (cross-cutting, GA'd in Q9): extend `sksecurity status`
+2. **Runtime self-report** (cross-cutting, GA'd in Q9): extend `sksecurity pqc-report`
    to report, **per live channel**, the negotiated KEM / signature / cipher and
    **hybrid-vs-classical**, citing FIPS 203/204/205. This is what makes every claim
    in the ecosystem *evidence-backed rather than asserted.*

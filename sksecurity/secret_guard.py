@@ -1,5 +1,5 @@
 """
-SKSecurity Enterprise - Secret Leak Prevention Module
+SKSecurity - Secret Leak Prevention Module
 
 Real-time detection of credentials, API keys, private keys, and secrets
 in files, git diffs, and agent output. Generates pre-commit hooks and
@@ -99,7 +99,7 @@ class GuardResult:
                     lines.append(f"     Fix: {finding.remediation}")
                 lines.append("")
 
-        lines.append("🛡️ Powered by SKSecurity Enterprise")
+        lines.append("🛡️ Powered by SKSecurity")
         return "\n".join(lines)
 
 

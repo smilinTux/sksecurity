@@ -143,7 +143,7 @@ Live migration on the operator's OWN data (backup taken first):
 | at-rest (operator store) | `x25519-mlkem768` | **hybrid-pq** |
 | identity / envelope-sig | `ed25519-v1` | classical (Phase 2) |
 
-**Honest scope.** `sksecurity status` / `pqc-report` now reflect the LIVE fleet
+**Honest scope.** `pqc-report` now reflect the LIVE fleet
 (`build_live_report()`): the group-key surface reads **"hybrid-pq for 4/422
 groups"** and only shows `hybrid-pq` for the surface when *all* groups are
 hybrid — while any group is classical the surface stays `classical` with the

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sksecurity.secret_guard import SecretGuard, GuardResult, SecretFinding
+from sksecurity.secret_guard import SecretGuard, GuardResult
 
 
 @pytest.fixture
