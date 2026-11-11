@@ -34,6 +34,9 @@ HELP = "Secrets and permissions on the local filesystem (gitleaks + native rules
 
 CONFIG_PATH = "~/.config/sksecurity/sweep-fs.yaml"
 
+#: Coverage notes of the last run() for callers and tests.
+LAST_STATS: Dict[str, object] = {}
+
 DEFAULT_ROOTS = [
     "~/clawd",
     "~/.config",
@@ -75,15 +78,27 @@ _PLACEHOLDER = re.compile(
 _GIT_URL = re.compile(r"^\s*url\s*=\s*(https?)://([^/@\s]+)@", re.I | re.M)
 _TOKEN_PREFIX = re.compile(
     r"^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|npm_|sk-|AKIA|ASIA|xox[abp]-)")
-_SECRET_NAME = re.compile(r"(secret|token|credential)", re.I)
-_SECRET_NAME_EXT = {"", ".env", ".conf", ".json", ".yaml", ".yml", ".toml", ".ini",
-                    ".key", ".pem", ".txt", ".cfg", ".token"}
+_KEY_EXT = {".pem", ".key"}
 _NOT_SECRET_NAME = re.compile(r"(tokeniz|example|sample|template|\.dist$|\.pub$)", re.I)
 
 #: gitleaks rule id fragments that mean a live provider credential.
 _CRITICAL_RULES = ("private-key", "aws", "github", "gitlab", "gcp", "azure", "openai",
                    "anthropic", "stripe", "slack", "npm", "pypi", "digitalocean",
                    "nvidia", "huggingface", "cloudflare", "telegram")
+
+#: Low-precision (entropy or shape based) gitleaks rules. In an agent transcript
+#: or shell history they are noise-prone and already-exposed by design, so they
+#: rate medium there (roll-up); in any other file they stay high.
+_GENERIC_RULES = ("generic-api-key", "curl-auth-header", "curl-auth-user", "jwt")
+_TRANSCRIPT_RE = re.compile(r"(/sessions/|/\.claude/projects/|/\.hermes/(sessions|logs)/|"
+                            r"\.jsonl$|_history$|/history$)")
+
+#: Default per-root (per gitleaks unit) time budget in seconds.
+GITLEAKS_BUDGET = 300
+
+#: Classes merged across files by value digest: one leaked value, many places.
+_MERGE_BY_DIGEST = ("secret.dsn-in-transcript",)  # gitleaks hits are merged as parsed
+MAX_LOCATIONS = 20
 
 REMEDIATION = {
     "secret.git-remote-credential": (
@@ -223,7 +238,13 @@ def _is_env_name(name: str) -> bool:
 
 
 def _secret_kind(path: str, name: str) -> Optional[str]:
-    """Why this file is considered secret-bearing, or None."""
+    """Why this file is considered secret-bearing, or None.
+
+    Deliberately narrow (env files, environment.d, ssh private keys, keyrings,
+    files under secrets/, *.pem and *.key). A name that merely contains
+    "token" or "secret" is NOT enough: that matched source files and docs and
+    produced thousands of findings.
+    """
     low = path.replace(os.sep, "/")
     if _NOT_SECRET_NAME.search(name):
         return None
@@ -238,9 +259,8 @@ def _secret_kind(path: str, name: str) -> Optional[str]:
         return "keyring"
     if "/secrets/" in low or "/.secrets/" in low:
         return "secrets-dir"
-    ext = os.path.splitext(name)[1].lower()
-    if _SECRET_NAME.search(name) and ext in _SECRET_NAME_EXT:
-        return "secret-name"
+    if os.path.splitext(name)[1].lower() in _KEY_EXT:
+        return "key-file"
     return None
 
 
@@ -509,17 +529,58 @@ def _find_gitleaks() -> Optional[str]:
     return shutil.which("gitleaks")
 
 
-def _gitleaks_severity(rule: str) -> str:
+def _gitleaks_severity(rule: str, path: str = "") -> str:
     r = rule.lower()
+    if any(g in r for g in _GENERIC_RULES):
+        return "medium" if _TRANSCRIPT_RE.search(path.replace(os.sep, "/")) else "high"
     return "critical" if any(h in r for h in _CRITICAL_RULES) else "high"
 
 
-def _run_gitleaks(binary: str, root: Path, exclude: List[str], timeout: Optional[float]
-                  ) -> Tuple[List[dict], Optional[str]]:
-    """Run gitleaks on one root. Returns (records without values, error)."""
+def _match_digests(records: List[dict]) -> None:
+    """Add ``digest`` to each record: salted hash of the matched slice of its line.
+
+    gitleaks runs with --redact, so the value is not in its report. The slice
+    is re-read from the file (StartColumn..EndColumn of StartLine), hashed and
+    dropped at once; two copies of the same leaked line hash the same, which is
+    what lets one value in many worktrees or transcripts be ONE finding. A
+    record that cannot be read keeps ``digest=None`` and falls back to a
+    (file, rule) identity.
+    """
+    by_file: Dict[str, List[dict]] = {}
+    for r in records:
+        r["digest"] = None
+        by_file.setdefault(r["file"], []).append(r)
+    for path, recs in by_file.items():
+        try:
+            if os.path.getsize(path) > MAX_NATIVE_BYTES:
+                continue
+            with open(path, "rb") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            continue
+        for r in recs:
+            n = int(r["line"] or 0)
+            if not 1 <= n <= len(lines):
+                continue
+            raw = lines[n - 1]
+            sc, ec = int(r.get("col0") or 0), int(r.get("col1") or 0)
+            if r.get("endline", n) == n and 0 < sc <= ec:
+                raw = raw[sc - 1:ec]
+            r["digest"] = value_digest(raw.decode("utf-8", errors="replace"))
+        lines = []  # drop file content
+
+
+def _run_gitleaks(binary: str, root: Path, exclude: List[str], timeout: Optional[float],
+                  skip_dirs: Optional[List[str]] = None) -> Tuple[List[dict], Optional[str]]:
+    """Run gitleaks on one unit. Returns (records without values, error).
+
+    ``skip_dirs`` are child directories handled by their own units (or skipped
+    as duplicate worktrees): they are path-allowlisted here.
+    """
     allow = [r"(^|/)(%s)/" % "|".join(re.escape(d) for d in sorted(PRUNE_DIRS)),
              r"(^|/)\.git/"]
     allow += [_glob_to_re(g) for g in exclude]
+    allow += ["^%s/" % re.escape(d.rstrip("/")) for d in skip_dirs or []]
     with tempfile.TemporaryDirectory(prefix="sksec-gl-") as td:
         os.chmod(td, 0o700)
         cfg = os.path.join(td, "gitleaks.toml")
@@ -545,11 +606,133 @@ def _run_gitleaks(binary: str, root: Path, exclude: List[str], timeout: Optional
             return [], "unreadable report"
         records = []
         for r in raw or []:
-            # Drop Secret/Match immediately: keep location and rule only.
+            # Drop Secret/Match immediately: keep location, rule and columns only.
             records.append({"rule": r.get("RuleID", ""), "file": r.get("File", ""),
-                            "line": r.get("StartLine", 0), "desc": r.get("Description", "")})
+                            "line": r.get("StartLine", 0), "endline": r.get("EndLine", 0),
+                            "col0": r.get("StartColumn", 0), "col1": r.get("EndColumn", 0),
+                            "desc": r.get("Description", "")})
         raw = None
+        _match_digests(records)
         return records, None
+
+
+def _repo_root_of(path: str) -> Optional[str]:
+    """Main checkout of a linked worktree at ``path`` (real path), else None."""
+    if not os.path.isfile(os.path.join(path, ".git")):
+        return None
+    common = _git_common_dir(path)
+    if not common:
+        return None
+    return os.path.dirname(common) if os.path.basename(common) == ".git" else common
+
+
+def _duplicate_worktree(path: str, roots: List[Path]) -> bool:
+    """True if ``path`` is a linked worktree whose main checkout lies under a
+    scanned root that does not contain ``path`` itself (e.g. ~/skworld-worktrees
+    copies of repos that live under ~/clawd)."""
+    main = _repo_root_of(path)
+    if not main:
+        return False
+    me = os.path.realpath(path)
+    for r in roots:
+        rr = os.path.realpath(r)
+        if (main == rr or main.startswith(rr + os.sep)) and not (me == rr or me.startswith(rr + os.sep)):
+            return True
+    return False
+
+
+def _gitleaks_units(roots: List[Path], exclude: List[str], split: bool, skip_dup: bool,
+                    default_budget: float, root_budgets: Dict[str, float]
+                    ) -> Tuple[list, List[str]]:
+    """(units, skipped_duplicate_worktrees). A unit is (path, skip_dirs, budget).
+
+    A root with several child directories is split: one unit per child plus one
+    for the root's own top-level files (children path-allowlisted). A slow tree
+    then times out alone and the rest of the root still reports.
+    """
+    units: list = []
+    skipped: List[str] = []
+    for root in roots:
+        budget = default_budget
+        for pat, secs in root_budgets.items():
+            if fnmatch.fnmatch(str(root), os.path.expanduser(pat)):
+                budget = secs
+        if skip_dup and _duplicate_worktree(str(root), roots):
+            skipped.append(str(root))
+            continue
+        children: List[str] = []
+        if split:
+            try:
+                for e in sorted(os.scandir(root), key=lambda x: x.name):
+                    if (e.is_dir(follow_symlinks=False) and e.name not in PRUNE_DIRS
+                            and e.name != ".git" and not _excluded(e.path, exclude)):
+                        children.append(e.path)
+            except OSError:
+                children = []
+        if len(children) < 2:
+            units.append((root, [], budget))
+            continue
+        units.append((root, list(children), budget))
+        for c in children:
+            if skip_dup and _duplicate_worktree(c, roots):
+                skipped.append(c)
+                continue
+            units.append((Path(c), [], budget))
+    return units, skipped
+
+
+def _merge_by_digest(findings: List[Finding]) -> List[Finding]:
+    """One finding per (klass, rule, value digest) for the classes in
+    ``_MERGE_BY_DIGEST``; the places it was seen go to ``details.locations``."""
+    out: List[Finding] = []
+    groups: Dict[Tuple[str, str, str], List[Finding]] = {}
+    for f in findings:
+        d = f.details.get("digest")
+        if f.klass in _MERGE_BY_DIGEST and d:
+            groups.setdefault((f.klass, f.rule, d), []).append(f)
+        else:
+            out.append(f)
+    for (klass, rule, digest), items in groups.items():
+        items.sort(key=lambda x: (_SEV_ORDER.get(x.severity, 9), x.location))
+        head = items[0]
+        locs = sorted({i.location for i in items})
+        occ = sum(int(i.details.get("occurrences", 1)) for i in items)
+        details = dict(head.details)
+        details.update(locations=locs[:MAX_LOCATIONS], location_count=len(locs),
+                       occurrences=occ)
+        out.append(Finding(
+            sweep=NAME, klass=klass, severity=head.severity, location=head.location,
+            summary=(f"{head.summary} (same value in {len(locs)} location(s))"
+                     if len(locs) > 1 else head.summary),
+            fingerprint=make_fingerprint(NAME, klass, rule, digest), rule=rule,
+            kedb=head.kedb, remediation=head.remediation, details=details))
+    return out
+
+
+_SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+
+
+def _collapse_perm_files(findings: List[Finding]) -> List[Finding]:
+    """perm.secret-file: one finding per directory (one chmod fixes the dir's files)."""
+    out: List[Finding] = []
+    by_dir: Dict[str, List[Finding]] = {}
+    for f in findings:
+        if f.klass == "perm.secret-file":
+            by_dir.setdefault(os.path.dirname(f.location), []).append(f)
+        else:
+            out.append(f)
+    for d, items in sorted(by_dir.items()):
+        names = sorted(os.path.basename(i.location) for i in items)
+        kinds = sorted({i.details.get("kind", "") for i in items})
+        out.append(Finding(
+            sweep=NAME, klass="perm.secret-file", severity="medium", location=d,
+            summary=f"{len(items)} secret-bearing file(s) readable by group/other or "
+                    f"foreign-owned ({', '.join(kinds)})",
+            fingerprint=make_fingerprint(NAME, "perm.secret-file", d),
+            rule="perm-secret-files", remediation=REMEDIATION["perm.secret-file"],
+            details={"count": len(items), "files": names[:MAX_LOCATIONS],
+                     "kinds": kinds}))
+    return out
 
 
 # ------------------------------------------------------------------- run ----
@@ -569,6 +752,22 @@ def run(**options) -> List[Finding]:
     budget = _Budget(seconds)
     findings: List[Finding] = []
 
+    def _opt(name: str, default):
+        return options.get(name, cfg.get(name, default))
+
+    def _truthy(v) -> bool:
+        return str(v).lower() not in ("off", "0", "false", "no")
+
+    try:
+        gl_budget = float(_opt("gitleaks_budget", GITLEAKS_BUDGET))
+    except (TypeError, ValueError):
+        gl_budget = float(GITLEAKS_BUDGET)
+    root_budgets = {str(k): float(v) for k, v in (cfg.get("root_budgets") or {}).items()}
+    gl_split = _truthy(_opt("gitleaks_split", True))
+    gl_skip_dup = _truthy(_opt("gitleaks_skip_duplicate_worktrees", True))
+    dup_dirs: Set[str] = set()
+    locs_by_key: Dict[Tuple[str, str], Set[str]] = {}
+
     sanctioned: Set[str] = set()
     dirs_done: Set[str] = set()
     repos_done: Set[str] = set()
@@ -580,14 +779,25 @@ def run(**options) -> List[Finding]:
             if not _allowed(f.location.rsplit(":", 1)[0] if ":" in f.location else f.location, allow):
                 findings.append(f)
 
-    # gitleaks runs one process per root, concurrently with the native walk.
+    # gitleaks runs one process per unit (root, or child of a big root),
+    # concurrently with the native walk, each with its own time budget.
     gl = _find_gitleaks()
     pool = None
     gl_jobs = None
+    skipped_dups: List[str] = []
     if gl is not None:
         from concurrent.futures import ThreadPoolExecutor
-        pool = ThreadPoolExecutor(max_workers=max(1, min(4, len(roots))))
-        gl_jobs = [(r, pool.submit(_run_gitleaks, gl, r, exclude, budget.left())) for r in roots]
+        units, skipped_dups = _gitleaks_units(roots, exclude, gl_split, gl_skip_dup,
+                                              gl_budget, root_budgets)
+        dup_dirs.update(skipped_dups)
+        pool = ThreadPoolExecutor(max_workers=max(1, min(4, len(units))))
+
+        def _job(unit):
+            path, skip_dirs, secs = unit
+            left = budget.left()
+            limit = secs if left is None else max(1.0, min(secs, left))
+            return _run_gitleaks(gl, path, exclude, limit, skip_dirs)
+        gl_jobs = [(u[0], pool.submit(_job, u)) for u in units]
 
     for dirpath, dirnames, filenames in _walk(roots, exclude, budget):
         if ".git" in dirnames:
@@ -605,6 +815,8 @@ def run(**options) -> List[Finding]:
                             add(_rule_git_config(wc))
                 add(_rule_tracked_env(dirpath, budget.left() or 60.0))
         elif ".git" in filenames:
+            if _duplicate_worktree(dirpath, roots):
+                dup_dirs.add(dirpath)
             common = _git_common_dir(dirpath)
             if common and common not in repos_done:
                 repos_done.add(common)
@@ -617,7 +829,10 @@ def run(**options) -> List[Finding]:
             path = os.path.join(dirpath, name)
             if _excluded(path, exclude):
                 continue
-            pf, ok = _rule_perms(path, name, dirs_done)
+            if dup_dirs and path.startswith(tuple(d + os.sep for d in dup_dirs)):
+                pf, ok = [], False  # duplicate worktree: perms judged on the main checkout
+            else:
+                pf, ok = _rule_perms(path, name, dirs_done)
             add(pf)
             if ok:
                 sanctioned.add(path)
@@ -654,7 +869,7 @@ def run(**options) -> List[Finding]:
             fingerprint=make_fingerprint(NAME, "tool.missing", "gitleaks"),
             rule="gitleaks-missing", remediation=REMEDIATION["tool.missing"]))
     else:
-        grouped: Dict[Tuple[str, str], List[int]] = {}
+        grouped: Dict[Tuple[str, str, str], List[int]] = {}
         for root, fut in gl_jobs:
             recs, err = fut.result()
             if err:
@@ -662,29 +877,50 @@ def run(**options) -> List[Finding]:
                     budget.hit = True
                 findings.append(Finding(
                     sweep=NAME, klass="tool.error", severity="low", location=str(root),
-                    summary=f"gitleaks did not complete ({err})",
+                    summary=f"gitleaks did not complete on {root} ({err})",
                     fingerprint=make_fingerprint(NAME, "tool.error", str(root)),
-                    rule="gitleaks-error"))
+                    rule="gitleaks-error",
+                    remediation="Raise gitleaks_budget (or root_budgets for this path) "
+                                "or exclude the tree."))
                 continue
             for r in recs:
                 f = r["file"]
-                if f in sanctioned or _excluded(f, exclude):
+                if f in sanctioned or _excluded(f, exclude) or _allowed(f, allow):
                     continue
-                grouped.setdefault((f, r["rule"]), []).append(int(r["line"] or 0))
-        for (f, rule), lines in sorted(grouped.items()):
-            if _allowed(f, allow):
-                continue
-            first = min(lines)
+                # Value digest when known (dedups copies); else file identity.
+                ident = r.get("digest") or "file:" + f
+                grouped.setdefault((r["rule"], ident, f if not r.get("digest") else ""),
+                                   []).append(int(r["line"] or 0))
+                if r.get("digest"):
+                    locs_by_key.setdefault((r["rule"], ident), set()).add(
+                        f"{f}:{int(r['line'] or 0)}" if r["line"] else f)
+        for (rule, ident, nodigest_file), lines in sorted(grouped.items()):
+            digest = None if ident.startswith("file:") else ident
+            if digest:
+                locs = sorted(locs_by_key[(rule, ident)])
+                head = locs[0]
+                path0 = head.rsplit(":", 1)[0] if ":" in head else head
+                parts = (rule, digest)
+                details = {"digest": digest, "occurrences": len(lines),
+                           "locations": locs[:MAX_LOCATIONS], "location_count": len(locs)}
+            else:
+                path0 = nodigest_file
+                first = min(lines)
+                head = f"{path0}:{first}" if first else path0
+                parts = (path0, rule)
+                details = {"occurrences": len(lines)}
             findings.append(Finding(
-                sweep=NAME, klass="secret.gitleaks", severity=_gitleaks_severity(rule),
-                location=f"{f}:{first}" if first else f,
+                sweep=NAME, klass="secret.gitleaks", severity=_gitleaks_severity(rule, path0),
+                location=head,
                 summary=f"gitleaks rule {rule} matched ({len(lines)} occurrence(s))",
-                fingerprint=make_fingerprint(NAME, "secret.gitleaks", f, rule),
-                rule=rule, remediation=REMEDIATION["secret.gitleaks"],
-                details={"occurrences": len(lines)}))
+                fingerprint=make_fingerprint(NAME, "secret.gitleaks", *parts),
+                rule=rule, remediation=REMEDIATION["secret.gitleaks"], details=details))
     if pool is not None:
         pool.shutdown(wait=True)
 
+    findings = _collapse_perm_files(_merge_by_digest(findings))
+    if skipped_dups:
+        LAST_STATS["duplicate_worktrees_skipped"] = len(skipped_dups)
     if budget.hit:
         findings.append(Finding(
             sweep=NAME, klass="sweep.truncated", severity="low", location="time_budget",
