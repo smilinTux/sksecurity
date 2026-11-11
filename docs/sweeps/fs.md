@@ -55,9 +55,9 @@ Noise control (see also docs/sweeps/reporting.md, Baseline):
   permission rules. The native KEDB rules still run there (one git config per repo regardless).
   Disable with `gitleaks_skip_duplicate_worktrees: false`.
 - **Generic rules.** `generic-api-key`, `curl-auth-header`, `curl-auth-user` and `jwt` are
-  low-precision. In agent transcripts and shell history (`*.jsonl`, `/sessions/`,
-  `~/.claude/projects`, `*_history`) they rate medium (roll-up); elsewhere they stay high. Provider
-  rules (github, aws, private-key, ...) stay critical.
+  low-precision (thousands of distinct ids, hashes and cached tokens). They rate medium everywhere
+  (one roll-up incident, never one each); provider rules (github, aws, private-key, ...) stay
+  critical and are the per-finding incidents.
 
 ## Native rules
 
@@ -67,7 +67,7 @@ Noise control (see also docs/sweeps/reporting.md, Baseline):
 | secret.systemd-env | secret-looking `Environment=` in user and system units (and readable EnvironmentFile content) | critical or high | ke-leak-nvidia-apikey |
 | secret.tracked-env | `.env`, `*.env` in `git ls-files` | high | ke-leak-skgentis-wallet-keys |
 | secret.dsn-in-transcript | postgres/mysql/redis/mongodb URL with a password in `*.jsonl` and shell history; one finding per distinct password, locations in `details` | high | none yet |
-| perm.secret-file | secret-bearing file readable by group/other or owned by someone else; ONE finding per directory (`details.files`) | medium | |
+| perm.secret-file | secret-bearing file readable by group/other or owned by someone else; ONE finding per directory (`details.files`; a writable-dir finding for the same directory is folded in as `dir_mode`); docs and templates under `secrets/` are ignored | medium | |
 | perm.secret-dir | parent dir of such a file writable by group/other | medium | |
 | tool.missing, tool.error, sweep.truncated | the sweep itself | low | |
 

@@ -66,6 +66,7 @@ DEFAULT_EXCLUDE = [
     "*/.config/BraveSoftware", "*/.config/BraveSoftware/*",
     "*/.config/microsoft-edge", "*/.config/microsoft-edge/*",
     "*/.mozilla", "*/.mozilla/*",
+    "*/.hermes/cache", "*/.hermes/cache/*",
 ]
 
 SYSTEMD_DIRS = ["~/.config/systemd/user", "/etc/systemd/system"]
@@ -87,6 +88,7 @@ _GIT_URL = re.compile(r"^\s*url\s*=\s*(https?)://([^/@\s]+)@", re.I | re.M)
 _TOKEN_PREFIX = re.compile(
     r"^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|glpat-|npm_|sk-|AKIA|ASIA|xox[abp]-)")
 _KEY_EXT = {".pem", ".key"}
+_DOC_NAME = re.compile(r"(\.(md|rst|txt|example|sample|tpl|template|j2|gitkeep|dist)$|^readme)", re.I)
 _NOT_SECRET_NAME = re.compile(r"(tokeniz|example|sample|template|\.dist$|\.pub$)", re.I)
 
 #: gitleaks rule id fragments that mean a live provider credential.
@@ -94,12 +96,10 @@ _CRITICAL_RULES = ("private-key", "aws", "github", "gitlab", "gcp", "azure", "op
                    "anthropic", "stripe", "slack", "npm", "pypi", "digitalocean",
                    "nvidia", "huggingface", "cloudflare", "telegram")
 
-#: Low-precision (entropy or shape based) gitleaks rules. In an agent transcript
-#: or shell history they are noise-prone and already-exposed by design, so they
-#: rate medium there (roll-up); in any other file they stay high.
+#: Low-precision (entropy or shape based) gitleaks rules. They matched thousands of
+#: distinct non-secret strings (ids, hashes, cached tokens), so they rate medium
+#: (roll-up, never an incident each); provider-specific rules stay critical/high.
 _GENERIC_RULES = ("generic-api-key", "curl-auth-header", "curl-auth-user", "jwt")
-_TRANSCRIPT_RE = re.compile(r"(/sessions/|/\.claude/projects/|/\.hermes/(sessions|logs)/|"
-                            r"\.jsonl$|_history$|/history$)")
 
 #: Default per-root (per gitleaks unit) time budget in seconds.
 GITLEAKS_BUDGET = 300
@@ -265,7 +265,7 @@ def _secret_kind(path: str, name: str) -> Optional[str]:
         return "ssh-key"
     if "keyring" in low.rsplit("/", 1)[0].lower() or name.endswith(".keyring"):
         return "keyring"
-    if "/secrets/" in low or "/.secrets/" in low:
+    if ("/secrets/" in low or "/.secrets/" in low) and not _DOC_NAME.search(name):
         return "secrets-dir"
     if os.path.splitext(name)[1].lower() in _KEY_EXT:
         return "key-file"
@@ -538,9 +538,10 @@ def _find_gitleaks() -> Optional[str]:
 
 
 def _gitleaks_severity(rule: str, path: str = "") -> str:
+    """Provider rules are critical/high; the generic rules are medium everywhere."""
     r = rule.lower()
     if any(g in r for g in _GENERIC_RULES):
-        return "medium" if _TRANSCRIPT_RE.search(path.replace(os.sep, "/")) else "high"
+        return "medium"
     return "critical" if any(h in r for h in _CRITICAL_RULES) else "high"
 
 
@@ -721,7 +722,8 @@ _SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 def _collapse_perm_files(findings: List[Finding]) -> List[Finding]:
-    """perm.secret-file: one finding per directory (one chmod fixes the dir's files)."""
+    """perm.secret-file: one finding per directory (one chmod fixes the dir's files).
+    A perm.secret-dir finding for the same directory is folded into it."""
     out: List[Finding] = []
     by_dir: Dict[str, List[Finding]] = {}
     for f in findings:
@@ -729,6 +731,8 @@ def _collapse_perm_files(findings: List[Finding]) -> List[Finding]:
             by_dir.setdefault(os.path.dirname(f.location), []).append(f)
         else:
             out.append(f)
+    folded = {f.location: f for f in out if f.klass == "perm.secret-dir" and f.location in by_dir}
+    out = [f for f in out if f.location not in folded or f.klass != "perm.secret-dir"]
     for d, items in sorted(by_dir.items()):
         names = sorted(os.path.basename(i.location) for i in items)
         kinds = sorted({i.details.get("kind", "") for i in items})
@@ -738,8 +742,8 @@ def _collapse_perm_files(findings: List[Finding]) -> List[Finding]:
                     f"foreign-owned ({', '.join(kinds)})",
             fingerprint=make_fingerprint(NAME, "perm.secret-file", d),
             rule="perm-secret-files", remediation=REMEDIATION["perm.secret-file"],
-            details={"count": len(items), "files": names[:MAX_LOCATIONS],
-                     "kinds": kinds}))
+            details={"count": len(items), "files": names[:MAX_LOCATIONS], "kinds": kinds,
+                     **({"dir_mode": folded[d].details.get("mode")} if d in folded else {})}))
     return out
 
 

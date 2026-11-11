@@ -108,8 +108,10 @@ def test_perm_dir_writable(tmp_path):
     f.write_text("x")
     f.chmod(0o600)
     sd.chmod(0o777)
+    (sd / "README.md").write_text("doc")
+    (sd / "README.md").chmod(0o644)
     c = _by_class(fs.run(root=str(tmp_path / "t")))
-    assert "perm.secret-dir" in c and "perm.secret-file" not in c
+    assert "perm.secret-dir" in c and "perm.secret-file" not in c  # docs in secrets/ ignored
 
 
 def test_exclude_and_allow_config(tree, tmp_path):
@@ -203,7 +205,7 @@ def test_same_value_in_many_files_is_one_finding(tmp_path, stub):
     assert {f.fingerprint for f in again} == {f.fingerprint for f in fs_findings}
 
 
-def test_generic_rules_medium_in_transcripts_high_elsewhere(tmp_path, stub):
+def test_generic_rules_medium_provider_rules_critical(tmp_path, stub):
     root = tmp_path / "r"
     (root / "sessions").mkdir(parents=True)
     (root / "conf").mkdir()
@@ -215,7 +217,7 @@ def test_generic_rules_medium_in_transcripts_high_elsewhere(tmp_path, stub):
     got = {(os.path.basename(f.location.split(":")[0]), f.rule): f.severity
            for f in fs.run(root=str(root), gitleaks_split="off") if f.klass == "secret.gitleaks"}
     assert got[("x.jsonl", "generic-api-key")] == "medium"
-    assert got[("app.yaml", "generic-api-key")] == "high"
+    assert got[("app.yaml", "generic-api-key")] == "medium"
     assert got[("app.yaml", "github-pat")] == "critical"
 
 
