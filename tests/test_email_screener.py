@@ -325,3 +325,64 @@ class TestFailureCases:
         """Empty attachments list should not crash."""
         result = screener.screen("Hello", attachments=[])
         assert result is not None
+
+
+# --- Link and subject screening (sweep-mail) ---------------------------
+
+
+class TestLinkScreening:
+    def test_click_url_to_verify_with_urgent_subject_not_safe(self, screener):
+        r = screener.screen(
+            "click http://bit.ly/x to verify your password now", subject="Urgent"
+        )
+        assert r.verdict != Verdict.SAFE
+
+    def test_click_url_to_verify_body_alone_flagged(self, screener):
+        r = screener.screen("Please click http://example.org/a to verify your account")
+        assert any("phishing" in f.category.value for f in r.findings)
+
+    def test_urgent_subject_alone_flagged(self, screener):
+        r = screener.screen("Hello there", subject="URGENT: act now")
+        assert any("in subject" in f.description for f in r.findings)
+
+    def test_plain_newsletter_stays_safe(self, screener):
+        body = (
+            "Hi all,\nThis week's newsletter: https://example.com/blog/post-1 and "
+            "https://www.google.com/maps and https://github.com/org/repo.\n"
+            "Click here to unsubscribe.\nThanks!"
+        )
+        assert screener.screen(body, subject="Weekly newsletter").verdict == Verdict.SAFE
+
+    def test_bare_shortener_is_weak_signal(self, screener):
+        r = screener.screen("See https://bit.ly/abc for the notes", subject="Notes")
+        assert r.verdict == Verdict.SAFE
+        assert any("shortener" in f.description for f in r.findings)
+
+    @pytest.mark.parametrize("host", ["t.co", "tinyurl.com", "goo.gl", "ow.ly", "is.gd",
+                                      "buff.ly", "rebrand.ly", "cutt.ly"])
+    def test_shorteners_detected(self, screener, host):
+        r = screener.screen(f"go to https://{host}/x")
+        assert any("shortener" in f.description for f in r.findings)
+
+    def test_punycode_flagged(self, screener):
+        r = screener.screen("visit https://xn--pypal-4ve.com/login")
+        assert any("punycode" in f.description for f in r.findings)
+
+    @pytest.mark.parametrize("url", [
+        "https://paypal-secure-login.com/x",
+        "https://login.paypal.com.evil.example/x",
+        "https://microsoft-support.net/x",
+        "https://chase.verify-now.org/x",
+    ])
+    def test_lookalike_brand_flagged_high(self, screener, url):
+        r = screener.screen(f"open {url}")
+        assert any("lookalike" in f.description and f.severity == "HIGH"
+                   for f in r.findings)
+
+    @pytest.mark.parametrize("url", [
+        "https://www.paypal.com/signin", "https://mail.google.com/mail",
+        "https://appleid.apple.com/", "https://smile.amazon.com/",
+    ])
+    def test_real_brand_domain_not_lookalike(self, screener, url):
+        r = screener.screen(f"open {url}")
+        assert not any("lookalike" in f.description for f in r.findings)
