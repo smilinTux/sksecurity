@@ -1,7 +1,5 @@
 """ITIL reporter tests against a tmp ITIL root. skcoord is optional."""
 
-import os
-from pathlib import Path
 
 import pytest
 
