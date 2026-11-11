@@ -318,3 +318,19 @@ def test_browser_profiles_excluded_by_default(tmp_path):
     (prof / "x.env").write_text("A=1\n")
     (prof / "x.env").chmod(0o644)
     assert not [f for f in fs.run(root=str(root)) if f.klass.startswith("perm.")]
+
+
+def test_secrets_dir_files_inside_a_repo_are_not_perm_findings(tmp_path):
+    repo = tmp_path / "r" / "repo"
+    (repo / "infra" / "secrets").mkdir(parents=True)
+    _git("init", "-q", cwd=repo)
+    f = repo / "infra" / "secrets" / "x.tfvars"
+    f.write_text("x")
+    f.chmod(0o644)
+    loose = tmp_path / "r" / "loose" / "secrets"
+    loose.mkdir(parents=True)
+    g = loose / "x.tfvars"
+    g.write_text("x")
+    g.chmod(0o644)
+    got = [f.location for f in fs.run(root=str(tmp_path / "r")) if f.klass == "perm.secret-file"]
+    assert got == [str(loose)]

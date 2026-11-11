@@ -488,12 +488,15 @@ def _rule_dsn_in_file(path: str) -> List[Finding]:
     return out
 
 
-def _rule_perms(path: str, name: str, dirs_done: Set[str]) -> Tuple[List[Finding], bool]:
+def _rule_perms(path: str, name: str, dirs_done: Set[str],
+                in_repo: bool = False) -> Tuple[List[Finding], bool]:
     """Returns (findings, file_is_sanctioned). Sanctioned = secret-bearing and
     owner-only, so its content is the intended secret and is not scanned."""
     kind = _secret_kind(path, name)
     if not kind:
         return [], False
+    if in_repo and kind == "secrets-dir":
+        return [], False  # git checks out 0644: a mode on repo content is not actionable
     try:
         st = os.lstat(path)
     except OSError:
@@ -542,6 +545,8 @@ def _gitleaks_severity(rule: str, path: str = "") -> str:
     r = rule.lower()
     if any(g in r for g in _GENERIC_RULES):
         return "medium"
+    if r == "gcp-api-key":  # often a restricted/public browser key: high, not critical
+        return "high"
     return "critical" if any(h in r for h in _CRITICAL_RULES) else "high"
 
 
@@ -778,6 +783,7 @@ def run(**options) -> List[Finding]:
     gl_split = _truthy(_opt("gitleaks_split", True))
     gl_skip_dup = _truthy(_opt("gitleaks_skip_duplicate_worktrees", True))
     dup_dirs: Set[str] = set()
+    repo_dirs: Set[str] = set()
     locs_by_key: Dict[Tuple[str, str], Set[str]] = {}
 
     sanctioned: Set[str] = set()
@@ -812,6 +818,8 @@ def run(**options) -> List[Finding]:
         gl_jobs = [(u[0], pool.submit(_job, u)) for u in units]
 
     for dirpath, dirnames, filenames in _walk(roots, exclude, budget):
+        if ".git" in dirnames or ".git" in filenames:
+            repo_dirs.add(dirpath)
         if ".git" in dirnames:
             common = _git_common_dir(dirpath)
             cfgp = os.path.join(dirpath, ".git", "config")
@@ -844,7 +852,8 @@ def run(**options) -> List[Finding]:
             if dup_dirs and path.startswith(tuple(d + os.sep for d in dup_dirs)):
                 pf, ok = [], False  # duplicate worktree: perms judged on the main checkout
             else:
-                pf, ok = _rule_perms(path, name, dirs_done)
+                pf, ok = _rule_perms(path, name, dirs_done, in_repo=bool(
+                    repo_dirs and path.startswith(tuple(d + os.sep for d in repo_dirs))))
             add(pf)
             if ok:
                 sanctioned.add(path)
