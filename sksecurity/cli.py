@@ -388,6 +388,29 @@ def claims_text(text):
     sys.exit(1 if findings else 0)
 
 
+
+@cli.command(name="sweep")
+@click.argument("name")
+@click.option("--format", "output_format", default="text", type=click.Choice(["text", "json"]))
+@click.option("--report/--dry-run", "do_report", default=False,
+              help="File findings into ITIL (default: dry run, print only).")
+@click.option("--opt", "opts", multiple=True, help="Sweep option KEY=VALUE (repeatable).")
+def sweep_cmd(name, output_format, do_report, opts):
+    """Run a report-only sweep (fs, deps, mail). Never changes a file."""
+    from . import sweeps
+    from .report import report
+    options = dict(o.split("=", 1) for o in opts)
+    findings = sweeps.get(name)(**options)
+    summary = report(findings, sweep=name, dry_run=not do_report)
+    if output_format == "json":
+        click.echo(json.dumps({"summary": summary,
+                               "findings": [f.to_dict() for f in findings]}, indent=2))
+    else:
+        for f in findings:
+            click.echo(f"[{f.severity}] {f.klass} {f.location}: {f.summary}")
+        click.echo(json.dumps(summary))
+    sys.exit(1 if any(f.severity in ("critical", "high") for f in findings) else 0)
+
 def main():
     """Main CLI entry point."""
     try:
