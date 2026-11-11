@@ -61,7 +61,7 @@ SYSTEMD_DIRS = ["~/.config/systemd/user", "/etc/systemd/system"]
 UNIT_SUFFIXES = (".service", ".conf", ".socket", ".timer", ".mount", ".path")
 
 MAX_NATIVE_BYTES = 200 * 1024 * 1024
-MAX_LINE = 64 * 1024
+MAX_LINE = 16 * 1024 * 1024
 
 _SECRET_KEY = re.compile(
     r"(TOKEN|PASSWORD|PASSWD|SECRET|API_?KEY|APIKEY|PRIVATE_?KEY|CREDENTIAL)", re.I)
@@ -172,12 +172,21 @@ class _Budget:
         return self.hit
 
 
+_RE_CACHE: Dict[Tuple[str, ...], "re.Pattern"] = {}
+
+
 def _excluded(path: str, globs: List[str]) -> bool:
-    return any(fnmatch.fnmatch(path, g) for g in globs)
+    """fnmatch against any glob, via one cached combined regex (hot path)."""
+    key = tuple(globs)
+    rx = _RE_CACHE.get(key)
+    if rx is None:
+        rx = re.compile("|".join(f"(?:{fnmatch.translate(g)})" for g in globs) or "(?!)")
+        _RE_CACHE[key] = rx
+    return rx.match(path) is not None
 
 
 def _allowed(path: str, allow: List[str]) -> bool:
-    return any(fnmatch.fnmatch(path, g) for g in allow)
+    return bool(allow) and _excluded(path, allow)
 
 
 def _walk(roots: List[Path], exclude: List[str], budget: _Budget
@@ -520,7 +529,7 @@ def _run_gitleaks(binary: str, root: Path, exclude: List[str], timeout: Optional
         lines += ["]"]
         Path(cfg).write_text("\n".join(lines), encoding="utf-8")
         cmd = [binary, "dir", str(root), "--redact", "--no-banner", "--no-color",
-               "--exit-code", "0", "--max-target-megabytes", "20",
+               "--exit-code", "0", "--max-target-megabytes", "5",
                "--report-format", "json", "--report-path", report_path, "-c", cfg]
         try:
             proc = subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)
@@ -570,6 +579,15 @@ def run(**options) -> List[Finding]:
         for f in items:
             if not _allowed(f.location.rsplit(":", 1)[0] if ":" in f.location else f.location, allow):
                 findings.append(f)
+
+    # gitleaks runs one process per root, concurrently with the native walk.
+    gl = _find_gitleaks()
+    pool = None
+    gl_jobs = None
+    if gl is not None:
+        from concurrent.futures import ThreadPoolExecutor
+        pool = ThreadPoolExecutor(max_workers=max(1, min(4, len(roots))))
+        gl_jobs = [(r, pool.submit(_run_gitleaks, gl, r, exclude, budget.left())) for r in roots]
 
     for dirpath, dirnames, filenames in _walk(roots, exclude, budget):
         if ".git" in dirnames:
@@ -628,9 +646,8 @@ def run(**options) -> List[Finding]:
                         units_done.add(p)
                         add(_rule_systemd_unit(p))
 
-    # gitleaks
-    gl = _find_gitleaks()
-    if gl is None:
+    # gitleaks results (started before the walk, see below)
+    if gl_jobs is None:
         findings.append(Finding(
             sweep=NAME, klass="tool.missing", severity="low", location="gitleaks",
             summary="gitleaks not found; ran native rules only",
@@ -638,12 +655,8 @@ def run(**options) -> List[Finding]:
             rule="gitleaks-missing", remediation=REMEDIATION["tool.missing"]))
     else:
         grouped: Dict[Tuple[str, str], List[int]] = {}
-        for root in roots:
-            left = budget.left()
-            if left is not None and left <= 0:
-                budget.hit = True
-                break
-            recs, err = _run_gitleaks(gl, root, exclude, left)
+        for root, fut in gl_jobs:
+            recs, err = fut.result()
             if err:
                 if err == "timeout":
                     budget.hit = True
@@ -669,6 +682,8 @@ def run(**options) -> List[Finding]:
                 fingerprint=make_fingerprint(NAME, "secret.gitleaks", f, rule),
                 rule=rule, remediation=REMEDIATION["secret.gitleaks"],
                 details={"occurrences": len(lines)}))
+    if pool is not None:
+        pool.shutdown(wait=True)
 
     if budget.hit:
         findings.append(Finding(
