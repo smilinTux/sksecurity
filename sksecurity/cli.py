@@ -432,6 +432,10 @@ def sweep_cmd(name, output_format, do_report, opts):
         for f in findings:
             click.echo(f"[{f.severity}] {f.klass} {f.location}: {f.summary}")
         click.echo(json.dumps(summary))
+    if do_report:
+        # Scheduled mode: findings went to ITIL, so they are not a job failure.
+        # Only a reporting failure is (exit 3), so sk-cron-run alerts on that.
+        sys.exit(3 if summary.get("error") else 0)
     sys.exit(1 if any(f.severity in ("critical", "high") for f in findings) else 0)
 
 def main():
