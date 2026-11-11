@@ -1,5 +1,5 @@
 """
-SKSecurity Enterprise - Email & Input Screening Module
+SKSecurity - Email & Input Screening Module
 
 Scans emails, messages, and agent inputs *before* they reach the AI model.
 Catches phishing, prompt injection, malicious links, and credential leaks.
@@ -94,7 +94,7 @@ class ScreeningResult:
             "",
         ]
         if not self.findings:
-            lines.append("✅ No threats detected — content is clean.")
+            lines.append("✅ No threats detected - content is clean.")
         else:
             lines.append(f"🚨 Found {len(self.findings)} issue(s):")
             lines.append("-" * 30)
@@ -110,7 +110,7 @@ class ScreeningResult:
                 if finding.remediation:
                     lines.append(f"     Fix: {finding.remediation}")
                 lines.append("")
-        lines.append("🛡️ Powered by SKSecurity Enterprise")
+        lines.append("🛡️ Powered by SKSecurity")
         return "\n".join(lines)
 
 

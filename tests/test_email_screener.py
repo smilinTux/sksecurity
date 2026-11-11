@@ -4,7 +4,6 @@ import pytest
 
 from sksecurity.email_screener import (
     EmailScreener,
-    ScreeningResult,
     Verdict,
     ThreatCategory,
 )

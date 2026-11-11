@@ -21,7 +21,7 @@ fi
 
 "${python_bin}" -m venv "${venv_dir}"
 "${venv_dir}/bin/python" -m pip install --upgrade pip
-"${venv_dir}/bin/python" -m pip install -e "${repo_dir}[web,pdf,skcapstone]"
+"${venv_dir}/bin/python" -m pip install -e "${repo_dir}[skcapstone]"
 "${venv_dir}/bin/python" -m pip check
 "${venv_dir}/bin/sksecurity" --help >/dev/null
 

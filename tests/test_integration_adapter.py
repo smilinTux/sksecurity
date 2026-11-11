@@ -22,7 +22,8 @@ def home(tmp_path, monkeypatch):
     """Sandbox skcapstone's shared home at a temp dir for this test."""
     monkeypatch.setenv("SKCAPSTONE_HOME", str(tmp_path))
     monkeypatch.delenv("SK_STANDALONE", raising=False)
-    import skcapstone
+    # skcapstone is a sovereign sibling, not on PyPI: skip on public runners.
+    skcapstone = pytest.importorskip("skcapstone")
 
     monkeypatch.setattr(skcapstone, "AGENT_HOME", str(tmp_path))
     return tmp_path
@@ -44,8 +45,6 @@ def test_standalone_disables_integration(monkeypatch):
     monkeypatch.setenv("SK_STANDALONE", "1")
     assert integration.is_present() is False
     assert integration.alert("process", {"m": 1}, level="error") is False
-    assert integration.ensure_schedule() is False
-    assert integration.register_self() is False
 
 
 def test_absent_skcapstone_falls_back(monkeypatch):
@@ -68,44 +67,7 @@ def test_alert_publishes_severity_topic(home):
     assert data["payload"]["file"] == "id_rsa"
 
 
-def test_ensure_schedule_registers_intel_refresh(home):
-    assert integration.ensure_schedule(interval_hours=24) is True
-    from skcapstone.scheduler_jobs import load_jobs_with_dropins
-
-    jobs = {j.name: j for j in load_jobs_with_dropins(home / "config" / "jobs.yaml")}
-    assert "sksecurity_intel_refresh" in jobs
-    assert jobs["sksecurity_intel_refresh"].command == "sksecurity update --sources all"
-    assert jobs["sksecurity_intel_refresh"].every_seconds == 24 * 3600
-    assert integration.unregister_schedule() is True
-
-
-def test_register_self_writes_registry(home):
-    assert integration.register_self(pid_file="/tmp/sksec.pid") is True
-    entry = json.loads((home / "registry" / "sksecurity.json").read_text())
-    assert entry["name"] == "sksecurity"
-
-
-# -- end-to-end: SecurityMonitor event → shared bus -------------------------
-
-class _StubConfig:
-    runtime_monitoring = False
-
-    def get(self, key, default=None):
-        return default
-
-
-def test_monitor_event_shares_threat(home):
-    from sksecurity.monitor import SecurityMonitor, MonitorEvent
-
-    mon = SecurityMonitor(_StubConfig())
-    mon._on_event(MonitorEvent(
-        type="process", severity="high",
-        message="High CPU usage: 99%", details={"cpu_percent": 99},
-    ))
-    # high → error topic
-    topic_dir = home / "pubsub" / "topics" / "sksecurity.error"
-    assert topic_dir.is_dir()
-    data = json.loads(next(topic_dir.glob("msg-*.json")).read_text())
-    assert data["payload"]["event"] == "process"
-    assert data["payload"]["severity"] == "high"
-    assert data["payload"]["cpu_percent"] == 99
+def test_no_registration_or_scheduler_api():
+    """The adapter must not register the service or write scheduler jobs."""
+    for name in ("register_self", "ensure_schedule", "unregister_schedule"):
+        assert not hasattr(integration, name)

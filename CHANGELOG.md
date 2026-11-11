@@ -4,7 +4,57 @@ All notable changes to `sksecurity` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] (unreleased)
+
+Breaking. Version 1.x presented itself as a security operations platform. Most of
+it did not work (five headline commands crashed on a constructor mismatch) and one
+code path would have moved the scanned directory. 2.0 keeps what works and deletes
+the rest.
+
+### Removed (breaking)
+
+- CLI commands `scan`, `audit`, `quarantine`, `status`, `update`, `monitor`,
+  `dashboard`, `init`, and the global options `--config`, `--ai`, `--ai-model`,
+  `--ai-url` (and their `SKSECURITY_AI*` env vars).
+- Modules `scanner`, `quarantine`, `database`, `dashboard`, `pdf_report`,
+  `intelligence` (and the `community-threats/` feed, which could never load),
+  `truth_engine`, `ai_client`, `monitor`, `config`. Their public names
+  (`SecurityScanner`, `SecurityDatabase`, `SecurityMonitor`, `DashboardServer`,
+  `QuarantineManager`, `ThreatIntelligence`, `TruthEngine`, `SecurityConfig` and
+  helpers such as `quick_scan`) are gone from `sksecurity`.
+- `integration.ensure_schedule`, `unregister_schedule` and `register_self`. The
+  package no longer writes skscheduler drop-ins or skcapstone registry entries. A
+  leftover `sksecurity_intel_refresh` drop-in calls the removed `update` command and
+  should be deleted.
+- MCP tools `scan_path`, `get_events`, `monitor_status`.
+- The `web` and `pdf` extras and the dependencies `sqlalchemy`, `psutil`, `watchdog`,
+  `email-validator`, `pyyaml`, `requests`.
+- Repo debris: hype and status docs, `marketing/`, demo and `.backup` files, OpenClaw
+  plugin and `skill.yaml`, the JS bridge, static html pages, `INTEGRITY_MANIFEST.json`,
+  `requirements.txt`, legacy `scripts/`, `install.sh`, docker files, `references/`,
+  `docs/SKSENTRY.md`.
+
+### Fixed
+
+- `scan` no longer auto-quarantines. It used to `shutil.move` the whole scanned path
+  when the risk score reached the threshold. (Removed together with the command; the
+  report-only change landed first.)
+- `screen_input` over MCP called the secret guard. It now calls the email screener.
+- The test suite no longer touches the real `HOME` or `~/.skcapstone`: it sets tmp
+  `HOME` and `SKCAPSTONE_HOME` and `SK_STANDALONE=1`. A prior run rewrote
+  `~/.skcapstone/registry/sksecurity.json`.
+
+### Kept
+
+`guard`, `claims`, `screen`, `pqc-*`, `sksecurity.kms` (imported by skcapstone),
+`sksecurity.pqc_report` (imported by capauth), `integration.alert()`,
+`is_present()`, `level_for_severity()`, `sksecurity.__version__`, and the MCP tools
+`check_secrets` and `screen_input`.
+
+### Docs
+
+- README, SOP, SKILL and ARCHITECTURE rewritten to describe what ships, with real
+  example output. SOP evidence block updated.
 
 ### Operations
 

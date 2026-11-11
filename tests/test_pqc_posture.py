@@ -16,7 +16,6 @@ FIPS 203 (ML-KEM) / FIPS 204 (ML-DSA).
 
 from __future__ import annotations
 
-import pytest
 
 from sksecurity.pqc_posture import (
     POSTURE_CLASSICAL,

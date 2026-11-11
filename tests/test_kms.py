@@ -16,12 +16,9 @@ Covers:
 
 import importlib.util
 import os
-import tempfile
 from pathlib import Path
 
 import pytest
-import sys
-from pathlib import Path
 
 # Reason: sksecurity.__init__ imports flask-dependent dashboard module;
 # load kms.py directly to avoid pulling in optional dependencies
