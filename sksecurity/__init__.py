@@ -75,7 +75,7 @@ __all__ = [
 DEFAULT_CONFIG = {
     'security': {
         'enabled': True,
-        'auto_quarantine': True,
+        'auto_quarantine': False,
         'risk_threshold': 80,
         'dashboard_port': 8888,
     },

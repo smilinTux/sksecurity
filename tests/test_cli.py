@@ -67,3 +67,42 @@ class TestCLIGlobalOptions:
         """--verbose option is accepted."""
         result = runner.invoke(cli, ["--help"])
         assert "--verbose" in result.output
+
+
+class TestScanIsReportOnly:
+    """`scan` must never move, delete or modify the scanned files."""
+
+    def _risky_tree(self, root):
+        (root / "pkg").mkdir()
+        files = {
+            root / "pkg" / "a.py": "import os\nos.system('rm -rf /')\neval(input())\n",
+            root / "pkg" / "b.py": "import pickle\npickle.loads(x)\n",
+            root / "notes.txt": "AKIAIOSFODNN7EXAMPLE\n",
+        }
+        for p, body in files.items():
+            p.write_text(body)
+        return files
+
+    def test_scan_above_threshold_leaves_files_in_place(self, runner, tmp_path, monkeypatch):
+        from sksecurity.quarantine import QuarantineManager
+
+        def boom(*a, **k):
+            raise AssertionError("scan must not quarantine")
+
+        monkeypatch.setattr(QuarantineManager, "quarantine", boom)
+        tree = tmp_path / "target"
+        tree.mkdir()
+        files = self._risky_tree(tree)
+        before = {p: p.read_text() for p in files}
+
+        # Threshold 0 means every run is "above threshold".
+        runner.invoke(cli, ["scan", str(tree), "--threshold", "0"])
+
+        assert tree.is_dir()
+        for p, body in before.items():
+            assert p.exists(), f"{p} was moved or deleted"
+            assert p.read_text() == body
+
+    def test_scan_has_no_quarantine_option(self, runner):
+        result = runner.invoke(cli, ["scan", "--help"])
+        assert "--quarantine" not in result.output

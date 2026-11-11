@@ -62,17 +62,19 @@ def cli(ctx, config, verbose, use_ai, ai_model, ai_url):
 @cli.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--format', 'output_format', default='text', type=click.Choice(['text', 'json', 'yaml']))
-@click.option('--threshold', '-t', default=80, type=int, help='Risk threshold for quarantine')
-@click.option('--quarantine/--no-quarantine', default=True, help='Auto-quarantine threats')
+@click.option('--threshold', '-t', default=80, type=int, help='Risk score at which the exit code is 1')
 @click.option('--export', type=click.Path(), help='Export results to file')
 @click.pass_context
-def scan(ctx, path, output_format, threshold, quarantine, export):
+def scan(ctx, path, output_format, threshold, export):
     """Scan AI agent or skill for security vulnerabilities.
-    
+
+    Report-only: this command never moves, deletes or modifies the scanned
+    files. Exit code is 1 when the risk score reaches --threshold.
+
     Examples:
         sksecurity scan ./my-ai-agent
         sksecurity scan ./suspicious-skill --format json
-        sksecurity scan ./agent-code --threshold 60 --no-quarantine
+        sksecurity scan ./agent-code --threshold 60
     """
     config = SecurityConfig.load(ctx.obj['config'])
     scanner = SecurityScanner(config=config)
@@ -84,13 +86,6 @@ def scan(ctx, path, output_format, threshold, quarantine, export):
     
     # Perform scan
     result = scanner.scan(Path(path))
-    
-    # Auto-quarantine if enabled and threshold exceeded
-    if quarantine and result.risk_score >= threshold:
-        quarantine_mgr = QuarantineManager(config=config)
-        quarantine_record = quarantine_mgr.quarantine(Path(path), result)
-        result.quarantined = True
-        result.quarantine_path = quarantine_record.quarantine_path
     
     # Format output
     if output_format == 'json':
