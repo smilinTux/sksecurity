@@ -17,6 +17,7 @@ from ..findings import Finding
 #: sweep name -> module path. Add one line per sweep.
 SWEEPS: Dict[str, str] = {
     "mail": "sksecurity.sweeps.mail",
+    "deps": "sksecurity.sweeps.deps",
 }
 
 
