@@ -24,7 +24,8 @@ Override in `~/.config/sksecurity/sweep-fs.yaml` (needs PyYAML):
     gitleaks_split: true             # one unit per child dir of a root (default on)
     gitleaks_skip_duplicate_worktrees: true
 
-Always skipped: `node_modules`, venvs, caches, `site-packages`, `.git/objects`,
+Always skipped: browser profiles (`~/.config/google-chrome`, `chrome-cdp`, `chromium`,
+`BraveSoftware`, `microsoft-edge`, `~/.mozilla`), `node_modules`, venvs, caches, `site-packages`, `.git/objects`,
 skvault data and the gog keyring dir. A secret-bearing file (`*.env`,
 `environment.d/*.conf`, ssh keys, keyring, `*secret*`/`*token*`/`*credential*`)
 that is owner-only is the sanctioned home of a secret: its content is not

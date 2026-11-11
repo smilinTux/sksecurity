@@ -307,3 +307,12 @@ def test_perm_findings_are_narrow_and_per_directory(tmp_path):
     assert sorted(os.path.basename(f.location) for f in perms) == ["certs", "envs"]
     envs = next(f for f in perms if f.location.endswith("envs"))
     assert envs.details["count"] == 3 and envs.details["files"] == ["a.env", "b.env", "c.env"]
+
+
+def test_browser_profiles_excluded_by_default(tmp_path):
+    root = tmp_path / "h" / ".config"
+    prof = root / "google-chrome" / "Default"
+    prof.mkdir(parents=True)
+    (prof / "x.env").write_text("A=1\n")
+    (prof / "x.env").chmod(0o644)
+    assert not [f for f in fs.run(root=str(root)) if f.klass.startswith("perm.")]

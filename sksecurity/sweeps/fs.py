@@ -58,6 +58,14 @@ DEFAULT_EXCLUDE = [
     "*/skvault/*", "*/.skvault/*", "*/skvault",
     "*/gogcli/keyring*", "*/gog/keyring*",
     "*/.git/objects/*", "*/.git/objects",
+    # Browser profiles: embedded public API keys and cached tokens, not our secrets
+    # (they were ~1000 gitleaks hits, mostly gcp-api-key and generic-api-key).
+    "*/.config/google-chrome", "*/.config/google-chrome/*",
+    "*/.config/chrome-cdp", "*/.config/chrome-cdp/*",
+    "*/.config/chromium", "*/.config/chromium/*",
+    "*/.config/BraveSoftware", "*/.config/BraveSoftware/*",
+    "*/.config/microsoft-edge", "*/.config/microsoft-edge/*",
+    "*/.mozilla", "*/.mozilla/*",
 ]
 
 SYSTEMD_DIRS = ["~/.config/systemd/user", "/etc/systemd/system"]
