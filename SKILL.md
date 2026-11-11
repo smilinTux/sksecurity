@@ -1,232 +1,66 @@
 ---
-name: sk-security-enterprise
-emoji: "\U0001F6E1\uFE0F"
-description: AI-first security for your AI agents. Just say "install and run security scan" and get enterprise-grade protection in seconds. No Docker commands or configuration needed - pure conversational security.
-metadata: {"clawdbot":{"requires":{"bins":["sksecurity"]},"install":[{"id":"pipx","kind":"shell","command":"pipx install 'sksecurity'","bins":["sksecurity"],"label":"Install sksecurity (pipx)"}]}}
+name: sksecurity
+description: Secret leak detection, honest-claims gate for crypto wording, shallow phishing/prompt-injection screening, and post-quantum posture reports. Read-only, local, no network.
+metadata: {"requires":{"bins":["sksecurity"]},"install":[{"id":"pipx","kind":"shell","command":"pipx install 'sksecurity'","bins":["sksecurity"],"label":"Install sksecurity (pipx)"}]}
 ---
 
-# SKSecurity Enterprise - AI-First Security
+# SKSecurity
 
-🤖 **The first conversational security platform for AI agents.** Just ask and it works.
+Use this when you need to check text or files for leaked credentials, check docs for
+crypto overclaims, screen a message for obvious phishing or injection, or report the
+post-quantum posture of the SK estate. It does not scan code for vulnerabilities,
+quarantine files, monitor processes or fetch threat intelligence (removed in 2.0).
 
-## Ultra-Simple Usage 🚀
+Everything is read-only: no command moves, deletes or modifies the files it inspects.
 
-**Just say any of these to OpenClaw:**
-- `"Install and run security scan"`
-- `"Check my AI agents for vulnerabilities"`  
-- `"Scan for security threats"`
-- `"Set up continuous security monitoring"`
-- `"Fix security issues"`
-
-**No Docker commands. No configuration. No technical knowledge needed.**
-
-## What Happens Automatically ✨
-
-When you say "install security scanner":
-- ✅ **Auto-installs** SKSecurity Enterprise in seconds
-- ✅ **Auto-discovers** all your AI agent code  
-- ✅ **AI-powered scanning** with real-time threat intelligence
-- ✅ **Plain English results** - explains everything clearly
-- ✅ **Offers automatic fixes** - AI can patch vulnerabilities
-- ✅ **Sets up 24/7 monitoring** - continuous protection
-
-## AI-First Features 🤖
-
-### **Conversational Security Management**
-```
-You: "Scan my code for security issues"
-AI: "✅ Found 0 critical threats, 2 recommendations. 
-     Would you like me to fix the hardcoded API key 
-     in config.py automatically?"
-```
-
-### **AI-Powered Threat Intelligence**
-- 🧠 **AI learns** new vulnerabilities from Moltbook, GitHub, NVD
-- 🔍 **AI generates** detection rules automatically
-- 🛡️ **AI explains** threats in plain English
-- 🔧 **AI fixes** vulnerabilities with secure code
-
-### **Zero-Friction Experience**
-- **No commands to remember** - just natural conversation
-- **No configuration files** - AI handles everything
-- **No technical expertise** - perfect for any skill level
-- **No maintenance** - updates and improves automatically
-
-## Enterprise Features 🏢
-
-- 💼 **Custom Compliance** - SOC2, NIST, industry-specific requirements
-- 👥 **Priority Support** - Human experts available 24/7 via support@smilintux.org
-- 🏗️ **White-label Deployment** - Custom branding for your organization  
-- 📊 **Executive Reporting** - Security metrics and risk assessments
-- 🔐 **Advanced Remediation** - AI-powered code security improvements
-
-## How It Works
-
-### **Installation (Conversational)**
-```
-User: "Install security scanner from GitHub"
-OpenClaw: "✅ Installing SKSecurity Enterprise...
-           🔍 Auto-discovered 15 AI agent files
-           🛡️ Running initial security scan...
-           ✅ Complete! Found 0 threats, 3 recommendations."
-```
-
-### **Ongoing Usage**
-```
-"Scan for vulnerabilities"        → Comprehensive security analysis
-"Show security status"            → Current protection dashboard  
-"Fix security issues"             → AI-powered automatic remediation
-"Update threat intelligence"      → Latest security data
-"Explain this vulnerability"      → Plain English security education
-"Set up continuous monitoring"    → 24/7 automated protection
-```
-
-## Technical Implementation
-
-### **For OpenClaw Integration**
-The skill includes a conversational handler that processes natural language security requests:
-
-```python
-# Handles phrases like:
-- "install security" → auto-installation
-- "scan for threats" → comprehensive analysis  
-- "fix vulnerabilities" → AI-powered remediation
-- "security status" → protection dashboard
-```
-
-### **Auto-Discovery Engine**
-- Automatically finds all AI agent code in workspace
-- Identifies framework types (OpenClaw skills, Python agents, etc.)
-- Configures appropriate security policies
-- Sets up continuous monitoring
-
-### **AI-Powered Analysis**
-- Real-time threat intelligence from multiple sources
-- Machine learning behavioral analysis
-- Context-aware vulnerability assessment  
-- Automated security policy generation
-
-## Installation Methods
-
-### **Method 1: Conversational (Recommended)**
-Just say: `"Install and run security scan"`
-
-### **Method 2: URL Installation**  
-Paste in chat: `"Install this: https://github.com/smilinTux/SKSecurity"`
-
-### **Method 3: Traditional (Fallback)**
-```bash
-# Docker
-docker pull smilintux/sksecurity:latest
-docker run -p 8888:8888 smilintux/sksecurity:latest
-
-# GitHub Installer
-curl -sSL https://raw.githubusercontent.com/smilinTux/SKSecurity/main/install.sh | bash
-
-# Manual Installation
-python3 scripts/install_security.py
-```
-
-## AI-Powered Analysis (--ai flag)
-
-SKSecurity integrates with Ollama for local AI-powered analysis:
+## Commands
 
 ```bash
-# Enable AI for any command
-sksecurity --ai scan /path/to/code
-sksecurity --ai screen "user input to check"
-sksecurity --ai guard scan /path/to/repo
+# Secrets (exit 1 when found; values are redacted in output)
+sksecurity guard scan <path>             # file or directory
+sksecurity guard staged                  # what git would commit
+sksecurity guard text "<string>"         # a string
+sksecurity guard install --repo .        # git pre-commit hook
+sksecurity guard scan <path> --format json
 
-# Configure via environment variables
-export SKSECURITY_AI=1
-export SKSECURITY_AI_MODEL=llama3.2
-export SKSECURITY_AI_URL=http://localhost:11434
+# Honest-claims gate (exit 1 on a forbidden overclaim)
+sksecurity claims scan .
+sksecurity claims text "<string>"
+
+# Screening (shallow regex heuristics; SAFE is not a guarantee)
+sksecurity screen "<text>" [--sender a@b.c] [--subject "..."] [--format json]
+
+# Post-quantum posture
+sksecurity pqc-report [--static] [--format json]
+sksecurity pqc-posture [--static]
+sksecurity pqc-dashboard | pqc-snapshot | pqc-stacks
 ```
 
-**AI Features:**
-- Scan result explanation in plain English
-- Content screening with contextual understanding
-- Threat intelligence analysis with severity assessment
-- Secret exposure risk assessment
-- Graceful fallback when Ollama is not running
+## When to use which
 
-### CLI Commands
+| Situation | Command |
+|---|---|
+| About to commit | `guard staged` |
+| Reviewing a directory for committed credentials | `guard scan <dir>` |
+| Writing or reviewing security docs | `claims scan .` |
+| Untrusted text headed for an agent | `screen` (one weak signal, not a filter) |
+| Asked "are we quantum-resistant?" | `pqc-report`, cite the per-surface result |
 
-```bash
-sksecurity scan /path         # Security scan
-sksecurity screen "input"     # Content screening
-sksecurity guard scan /path   # Guard mode
-sksecurity config show        # Show configuration
-sksecurity --version          # Version info
-```
+## Triage
 
----
+- A `guard` finding is a location and a redacted match. Rotate the credential first,
+  then remove it. Do not paste the secret value anywhere.
+- A `claims` finding names the phrase and the honest replacement ("post-quantum",
+  "quantum-resistant", cite FIPS 203/204/205). Fix the wording; do not allowlist real claims.
+- `screen` misses plenty (for example a bare shortened link plus "verify your password"
+  scores SAFE). Do not treat SAFE as clean.
 
-## Support & Resources
+## MCP
 
-### **Community Support**
-- 💬 **Discord**: https://discord.gg/5767MCWbFR (24/7 community)
-- 📧 **Email**: support@smilintux.org (Expert help)
-- 📚 **Docs**: https://github.com/smilinTux/SKSecurity/tree/main/docs
+`sksecurity-mcp` (stdio) exposes `check_secrets` and `screen_input`.
 
-### **Enterprise Support**
-- 📞 **Priority Support**: security@smilintux.org
-- 💼 **Sales Inquiries**: sales@smilintux.org  
-- 🤝 **Partnerships**: partnerships@smilintux.org
+## Notes
 
-## Why SKSecurity is Revolutionary
-
-### **Traditional Security Tools:**
-- Complex command-line interfaces
-- Manual configuration required
-- Technical expertise needed
-- Static threat databases
-- No AI integration
-
-### **SKSecurity AI-First:**
-- **Conversational interface** - "scan for threats"
-- **Zero configuration** - AI handles everything  
-- **Anyone can use** - no technical knowledge needed
-- **Living threat intelligence** - AI learns continuously
-- **Built for AI agents** - native understanding of AI frameworks
-
-## Examples
-
-### **Daily Security Check**
-```
-User: "Check my security status"
-AI: "🛡️ All systems secure! 
-     • Last scan: 2 hours ago
-     • Threats blocked: 0 today
-     • AI agents protected: 5
-     • Threat intel: Updated 15 min ago
-     Everything looks great! 👍"
-```
-
-### **Vulnerability Remediation**
-```
-User: "I think I have a security issue"  
-AI: "🔍 Running comprehensive scan...
-     ⚠️ Found command injection vulnerability in user_input.py
-     🔧 I can fix this automatically with secure input validation.
-     Would you like me to apply the fix? (Creates backup first)"
-```
-
-### **Continuous Monitoring Setup**
-```
-User: "Set up continuous security monitoring"
-AI: "✅ Enabling 24/7 protection:
-     • Real-time threat detection
-     • Automatic daily scans  
-     • Instant vulnerability alerts
-     • AI-powered threat learning
-     Your AI agents are now continuously protected! 🛡️"
-```
-
----
-
-🚀 **Ready to secure your AI agents with zero effort?**
-
-Just say: **"Install and run security scan"** and watch SKSecurity Enterprise protect your AI ecosystem automatically!
-
-**The future of AI security is conversational. Welcome to SKSecurity.** 🤖✨
+- Run tests only with a throwaway `HOME` (`tests/conftest.py` enforces it).
+- `SK_STANDALONE=1` disables the optional skcapstone sk-alert adapter.
+- Docs: `README.md`, `SOP.md`, `docs/ARCHITECTURE.md`.

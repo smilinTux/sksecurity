@@ -14,7 +14,7 @@ to forbid them ("never quantum-proof"), quote them in a policy ("❌
 negations / meta-references, not claims, and are allowed.
 
 Honesty discipline this gate encodes (sk-standards CRYPTOGRAPHY_STANDARD):
-  * A classical KEM stays harvest-now-decrypt-later (HNDL) exposed forever —
+  * A classical KEM stays harvest-now-decrypt-later (HNDL) exposed forever -
     nothing classical is "quantum-proof".
   * A hybrid scheme is only as strong as its strongest *surviving* leg; it is
     not "unbreakable", it degrades to whichever leg holds.

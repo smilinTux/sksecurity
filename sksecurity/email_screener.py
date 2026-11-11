@@ -94,7 +94,7 @@ class ScreeningResult:
             "",
         ]
         if not self.findings:
-            lines.append("✅ No threats detected — content is clean.")
+            lines.append("✅ No threats detected - content is clean.")
         else:
             lines.append(f"🚨 Found {len(self.findings)} issue(s):")
             lines.append("-" * 30)
