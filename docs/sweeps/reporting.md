@@ -29,3 +29,38 @@ every sweep files results. `dry_run=True` (the CLI default) touches nothing;
 The ITIL root is `SKSECURITY_ITIL_HOME`, else `SKCAPSTONE_SHARED_ROOT`, else
 `~/.skcapstone`. skcoord (or skcapstone) is optional: without it a non-dry run
 returns `error: itil-unavailable` and files nothing.
+
+## Baseline (accepted backlog)
+
+The first real run of a sweep on a node finds a large pre-existing backlog.
+Filing it would flood ITIL (one incident per critical/high finding), so a
+backlog is accepted once and only NEW findings are filed afterwards.
+
+    sksecurity sweep fs --baseline               # record the baseline, file nothing
+    sksecurity sweep fs --baseline --report      # record it and file ONE backlog incident
+    sksecurity sweep fs --report                 # daily: only fingerprints outside the baseline
+
+- File: `~/.local/state/sksecurity/baseline-<sweep>.json` (override the directory with
+  `SKSECURITY_STATE_DIR`), mode 0600, per sweep and per host (it is a local file).
+  It holds fingerprints with klass, severity and first_seen. No locations, no values.
+- Backlog incident: ONE sev3 per (sweep, host), titled
+  `sksecurity <sweep> backlog on <host>: N accepted findings`, tags `sksecurity`,
+  `sweep:<name>`, `host:<h>`, `backlog`. The body is counts by severity and class and the top
+  20 locations.
+- With a baseline, `--report` skips baselined fingerprints (per-finding incidents, the 20-per-run
+  cap and the medium/low roll-up all apply to new findings only). Run summaries show `new` and
+  `baselined`. The CLI exit status is 1 only for a new critical/high finding.
+- When accepted findings disappear (fixed), a non-dry `--report` appends one event to the open
+  backlog incident (how many were fixed, how many remain, by severity and class) and drops them
+  from the baseline, so a recurrence is reported as new. A truncated run drops nothing.
+  The backlog incident is never auto-closed.
+- Meta findings (`tool.*`, `sweep.*`) are never baselined.
+- Dry run (`--dry-run`, default) never prunes the baseline and files nothing.
+
+### Re-baselining
+
+After a clean-up, a sweep config change or a new fleet node, run a full (untruncated) sweep and
+`sksecurity sweep <name> --baseline --report`. It replaces the baseline with the current findings
+(`first_seen` is kept for fingerprints already accepted) and appends a "re-baselined" event to the
+open backlog incident instead of filing a second one. To start over, delete the baseline file and
+resolve the old backlog incident by hand. Do not baseline a run that reported `sweep.truncated`.

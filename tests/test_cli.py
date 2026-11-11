@@ -136,3 +136,18 @@ class TestKeptCommandsWork:
         r = runner.invoke(cli, ["screen", "hello there", "--format", "json"])
         assert r.exit_code == 0
         assert "verdict" in r.output.lower()
+
+
+def test_sweep_baseline_flag_writes_baseline_and_silences_exit(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+    from sksecurity import cli as cli_mod, sweeps
+    from sksecurity.findings import Finding
+
+    monkeypatch.setenv("SKSECURITY_STATE_DIR", str(tmp_path))
+    f = Finding("fs", "secret.tracked-env", "high", "/x/.env", "s", "fp1")
+    monkeypatch.setattr(sweeps, "get", lambda name: (lambda **kw: [f]))
+    runner = CliRunner()
+    assert runner.invoke(cli_mod.cli, ["sweep", "fs"]).exit_code == 1
+    res = runner.invoke(cli_mod.cli, ["sweep", "fs", "--baseline"])
+    assert res.exit_code == 0 and (tmp_path / "baseline-fs.json").is_file()
+    assert runner.invoke(cli_mod.cli, ["sweep", "fs"]).exit_code == 0  # accepted now

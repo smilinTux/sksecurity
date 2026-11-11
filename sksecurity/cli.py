@@ -417,14 +417,21 @@ def claims_text(text):
 @click.option("--format", "output_format", default="text", type=click.Choice(["text", "json"]))
 @click.option("--report/--dry-run", "do_report", default=False,
               help="File findings into ITIL (default: dry run, print only).")
+@click.option("--baseline", "do_baseline", is_flag=True,
+              help="Accept the current findings as this host's backlog (writes "
+                   "~/.local/state/sksecurity/baseline-NAME.json; with --report also files "
+                   "ONE backlog incident). Later --report runs file only new findings.")
 @click.option("--opt", "opts", multiple=True, help="Sweep option KEY=VALUE (repeatable).")
-def sweep_cmd(name, output_format, do_report, opts):
-    """Run a report-only sweep (fs, deps, mail). Never changes a file."""
+def sweep_cmd(name, output_format, do_report, do_baseline, opts):
+    """Run a report-only sweep (fs, deps, mail). Never changes a scanned file."""
     from . import sweeps
-    from .report import report
+    from .report import load_baseline, record_baseline, report
     options = dict(o.split("=", 1) for o in opts)
     findings = sweeps.get(name)(**options)
-    summary = report(findings, sweep=name, dry_run=not do_report)
+    if do_baseline:
+        summary = record_baseline(findings, sweep=name, dry_run=not do_report)
+    else:
+        summary = report(findings, sweep=name, dry_run=not do_report)
     if output_format == "json":
         click.echo(json.dumps({"summary": summary,
                                "findings": [f.to_dict() for f in findings]}, indent=2))
@@ -432,7 +439,10 @@ def sweep_cmd(name, output_format, do_report, opts):
         for f in findings:
             click.echo(f"[{f.severity}] {f.klass} {f.location}: {f.summary}")
         click.echo(json.dumps(summary))
-    sys.exit(1 if any(f.severity in ("critical", "high") for f in findings) else 0)
+    accepted = set() if do_baseline else load_baseline(name)
+    sys.exit(0 if do_baseline else 1 if any(
+        f.severity in ("critical", "high") and f.fingerprint not in accepted
+        for f in findings) else 0)
 
 def main():
     """Main CLI entry point."""
