@@ -6,6 +6,10 @@ All notable changes to `sksecurity` are documented here. The format is based on
 
 ## [2.0.0] (unreleased)
 
+### Security
+
+- Raised `cryptography` to `>=50.0.0,<51.0.0` (the advisory is fixed only in 50.0.0) and `mcp` to `>=1.30.0` to clear the 2026-11-13 dependency sweep findings.
+
 Breaking. Version 1.x presented itself as a security operations platform. Most of
 it did not work (five headline commands crashed on a constructor mismatch) and one
 code path would have moved the scanned directory. 2.0 keeps what works and deletes
